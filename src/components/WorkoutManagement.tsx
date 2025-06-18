@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
+// src/components/WorkoutManagement.tsx
+
+import React, { useState, useEffect } from 'react';
 import { Plus, Edit3, Trash2, Play, Pause, RotateCcw, ArrowUp, Clock, Dumbbell } from 'lucide-react';
 import { UserWorkout, Exercise } from '../types/workout';
+import { supabase } from '../supabaseClient'; // Importe o cliente Supabase
 
 const WorkoutManagement: React.FC = () => {
+  // O estado dos treinos agora virá do Supabase
   const [userWorkouts, setUserWorkouts] = useState<UserWorkout[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Estados para o formulário e timer (continuam os mesmos)
   const [isCreatingWorkout, setIsCreatingWorkout] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<UserWorkout | null>(null);
   const [newWorkoutName, setNewWorkoutName] = useState('');
@@ -12,8 +19,9 @@ const WorkoutManagement: React.FC = () => {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [activeRestTime, setActiveRestTime] = useState<number>(0);
-
-  // Weekly schedule management
+  
+  
+  // O estado do cronograma semanal permanece local por enquanto
   const [weeklySchedule, setWeeklySchedule] = useState([
     { day: 1, name: 'SEGUNDA-FEIRA', workout: 'strength', workoutId: '' },
     { day: 2, name: 'TERÇA-FEIRA', workout: 'cardio', distance: 5, targetTime: 30 },
@@ -24,7 +32,13 @@ const WorkoutManagement: React.FC = () => {
     { day: 0, name: 'DOMINGO', workout: 'rest' }
   ]);
 
-  React.useEffect(() => {
+  // Efeito para buscar os treinos do Supabase
+  useEffect(() => {
+    getWorkouts();
+  }, []);
+  
+  // Efeito para o timer (sem alterações)
+  useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isTimerRunning) {
       interval = setInterval(() => {
@@ -34,6 +48,71 @@ const WorkoutManagement: React.FC = () => {
     return () => clearInterval(interval);
   }, [isTimerRunning]);
 
+  // Função para buscar os treinos
+  const getWorkouts = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('workouts')
+        .select('*')
+        .order('createdAt', { ascending: false });
+
+      if (error) throw error;
+      if (data) setUserWorkouts(data);
+    } catch (error) {
+      console.error('Erro ao buscar treinos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Função para salvar (criar ou editar) um treino
+  const saveWorkout = async () => {
+    if (!newWorkoutName.trim() || exercises.length === 0) return;
+
+    const workoutData = {
+      name: newWorkoutName,
+      exercises: exercises.map(ex => ({ ...ex, total: ex.warmupSets + ex.workSets })),
+    };
+
+    try {
+      if (editingWorkout) {
+        // Atualiza um treino existente
+        const { error } = await supabase
+          .from('workouts')
+          .update(workoutData)
+          .eq('id', editingWorkout.id);
+        if (error) throw error;
+      } else {
+        // Cria um novo treino
+        const { error } = await supabase
+          .from('workouts')
+          .insert(workoutData);
+        if (error) throw error;
+      }
+      resetForm();
+      getWorkouts(); // Recarrega a lista de treinos
+    } catch (error) {
+      console.error('Erro ao salvar o treino:', error);
+    }
+  };
+
+  // Função para deletar um treino
+  const deleteWorkout = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('workouts')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      getWorkouts(); // Recarrega a lista de treinos
+    } catch (error) {
+      console.error('Erro ao deletar o treino:', error);
+    }
+  };
+
+  // Funções de manipulação do formulário e dos exercícios (sem alterações)
   const addExercise = () => {
     const newExercise: Exercise = {
       id: `exercise-${Date.now()}`,
@@ -58,26 +137,7 @@ const WorkoutManagement: React.FC = () => {
   const removeExercise = (id: string) => {
     setExercises(exercises.filter(ex => ex.id !== id));
   };
-
-  const saveWorkout = () => {
-    if (!newWorkoutName.trim() || exercises.length === 0) return;
-
-    const workout: UserWorkout = {
-      id: editingWorkout?.id || `workout-${Date.now()}`,
-      name: newWorkoutName,
-      exercises: exercises.map(ex => ({ ...ex, total: ex.warmupSets + ex.workSets })),
-      createdAt: editingWorkout?.createdAt || new Date().toISOString()
-    };
-
-    if (editingWorkout) {
-      setUserWorkouts(userWorkouts.map(w => w.id === editingWorkout.id ? workout : w));
-    } else {
-      setUserWorkouts([...userWorkouts, workout]);
-    }
-
-    resetForm();
-  };
-
+  
   const resetForm = () => {
     setIsCreatingWorkout(false);
     setEditingWorkout(null);
@@ -88,14 +148,12 @@ const WorkoutManagement: React.FC = () => {
   const editWorkout = (workout: UserWorkout) => {
     setEditingWorkout(workout);
     setNewWorkoutName(workout.name);
-    setExercises([...workout.exercises]);
+    // Assegura que exercises é um array
+    setExercises(Array.isArray(workout.exercises) ? [...workout.exercises] : []);
     setIsCreatingWorkout(true);
   };
-
-  const deleteWorkout = (id: string) => {
-    setUserWorkouts(userWorkouts.filter(w => w.id !== id));
-  };
-
+  
+  // Funções do timer e do cronograma (sem alterações)
   const startTimer = (exerciseId: string, restTime: number) => {
     setActiveExerciseId(exerciseId);
     setActiveRestTime(restTime);
@@ -124,7 +182,16 @@ const WorkoutManagement: React.FC = () => {
       schedule.map(s => s.day === day ? { ...s, [field]: value } : s)
     );
   };
-
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-teal-800 p-4 flex items-center justify-center">
+        <p className="text-white text-xl">Carregando treinos...</p>
+      </div>
+    );
+  }
+  
+  // SUBSTITUA SEU BLOCO 'return' POR ESTE AQUI
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-teal-800 p-4 pb-20">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -232,7 +299,7 @@ const WorkoutManagement: React.FC = () => {
                         </label>
                         <input
                           type="number"
-                          value={day.distance || 5}
+                          value={(day as any).distance || 5}
                           onChange={(e) => updateSchedule(day.day, 'distance', parseFloat(e.target.value))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                         />
@@ -243,7 +310,7 @@ const WorkoutManagement: React.FC = () => {
                         </label>
                         <input
                           type="number"
-                          value={day.targetTime || 30}
+                          value={(day as any).targetTime || 30}
                           onChange={(e) => updateSchedule(day.day, 'targetTime', parseInt(e.target.value))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                         />
@@ -300,15 +367,15 @@ const WorkoutManagement: React.FC = () => {
                       </div>
                     </div>
                     <p className="text-sm text-gray-600 mb-2">
-                      {workout.exercises.length} exercícios
+                      {Array.isArray(workout.exercises) ? workout.exercises.length : 0} exercícios
                     </p>
                     <div className="space-y-1">
-                      {workout.exercises.slice(0, 3).map((exercise) => (
+                      {Array.isArray(workout.exercises) && workout.exercises.slice(0, 3).map((exercise) => (
                         <p key={exercise.id} className="text-xs text-gray-500">
                           • {exercise.name || 'Exercício sem nome'}
                         </p>
                       ))}
-                      {workout.exercises.length > 3 && (
+                      {Array.isArray(workout.exercises) && workout.exercises.length > 3 && (
                         <p className="text-xs text-gray-400">
                           +{workout.exercises.length - 3} mais...
                         </p>

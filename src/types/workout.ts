@@ -50,12 +50,15 @@ export interface WeekProgression {
   description: string;
   volumeModifier: number;
 }
+// ... outras interfaces
 
 export interface WeeklySchedule {
   day: number;
-  workout: string;
   name: string;
-  workoutId?: string;
+  workout_type: 'strength' | 'cardio' | 'rest'; // Renomeado de 'workout'
+  workout_id?: string | null; // ID do treino de força
+  distance?: number; // Para cardio
+  target_time?: number; // Para cardio
 }
 
 export interface UserWorkout {
