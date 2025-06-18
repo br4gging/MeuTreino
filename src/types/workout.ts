@@ -1,3 +1,5 @@
+// src/types/workout.ts
+
 export interface Exercise {
   id: string;
   name: string;
@@ -8,25 +10,7 @@ export interface Exercise {
   lastWeight?: number;
   completed: number;
   total: number;
-  restTime?: number; // in seconds, user-defined
-}
-
-export interface WorkoutTemplate {
-  id: string;
-  name: string;
-  type: 'strength' | 'cardio';
-  exercises: Exercise[];
-  isUserCreated?: boolean;
-}
-
-export interface CardioWorkout {
-  id: string;
-  name: string;
-  type: 'cardio';
-  distance: number; // in km
-  targetTime?: number; // in minutes
-  completedTime?: number;
-  pace?: number; // calculated
+  restTime?: number;
 }
 
 export interface WorkoutSession {
@@ -50,15 +34,18 @@ export interface WeekProgression {
   description: string;
   volumeModifier: number;
 }
-// ... outras interfaces
 
-export interface WeeklySchedule {
+// Interface para um dia da programação semanal
+export interface DaySchedule {
   day: number;
   name: string;
-  workout_type: 'strength' | 'cardio' | 'rest'; // Renomeado de 'workout'
-  workout_id?: string | null; // ID do treino de força
-  distance?: number; // Para cardio
-  target_time?: number; // Para cardio
+  workoutType: 'strength' | 'cardio' | 'rest';
+  workoutId?: string | null;
+
+  // Propriedades de Cardio
+  cardioGoalType?: 'distance' | 'time';
+  distance?: number;
+  targetTime?: number;
 }
 
 export interface UserWorkout {
