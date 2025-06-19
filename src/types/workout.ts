@@ -69,3 +69,34 @@ export interface UserWorkout {
   exercises: Exercise[];
   createdAt: string;
 }
+
+// ARQUIVO: src/types/workout.ts
+// Adicione estas novas interfaces ao final do arquivo.
+
+// Detalhes específicos para um treino de força salvo.
+export interface StrengthWorkoutDetails {
+  exercises: (Exercise & { sets: DetailedSet[] })[];
+  exercisesCompleted: number;
+  totalExercises: number;
+}
+
+// Detalhes específicos para um treino de cardio salvo.
+export interface CardioWorkoutDetails {
+  distance: number;
+  pace: string; // Ex: "5:30 min/km"
+}
+
+// A interface principal para uma entrada no histórico.
+// Corresponde à nossa tabela 'workout_sessions'.
+export interface WorkoutSession {
+  id: string;
+  created_at: string;
+  user_id: string;
+  completed_at: string;
+  name: string;
+  type: 'strength' | 'cardio';
+  duration: number; // em segundos
+  week: number;
+  details: StrengthWorkoutDetails | CardioWorkoutDetails;
+  intensity?: number;
+}

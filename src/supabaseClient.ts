@@ -1,6 +1,6 @@
 // src/supabaseClient.ts
 import { createClient } from '@supabase/supabase-js'
-import { UserWorkout, DaySchedule } from './types/workout'; // Importando o tipo
+import { UserWorkout, DaySchedule, WorkoutSession } from './types/workout'; 
 
 // Pegue a URL e a chave da sua página de configurações da API no Supabase
 const supabaseUrl = 'https://cfbgtgyxrwkzsdqyfkbi.supabase.co';
@@ -15,13 +15,22 @@ export type Database = {
         Insert: Omit<UserWorkout, 'id' | 'createdAt'>;
         Update: Partial<UserWorkout>;
       };
-      // 1. Adicione a definição da nova tabela aqui
       weekly_schedule: {
         Row: DaySchedule;
         Insert: Omit<DaySchedule, 'id'>;
         Update: Partial<Omit<DaySchedule, 'id'>>;
       };
+      // 2. Adicione a definição da nova tabela 'workout_sessions' aqui
+      workout_sessions: {
+        Row: WorkoutSession;
+        Insert: Omit<WorkoutSession, 'id' | 'created_at' | 'user_id' | 'completed_at'>;
+        Update: Partial<Omit<WorkoutSession, 'id' | 'created_at' | 'user_id' | 'completed_at'>>;
+      };
     };
+    // Adicione a definição do Enum que criamos no SQL
+    Enums: {
+      workout_type: 'strength' | 'cardio'
+    }
   };
 };
 
