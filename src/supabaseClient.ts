@@ -1,6 +1,6 @@
 // src/supabaseClient.ts
 import { createClient } from '@supabase/supabase-js'
-import { UserWorkout } from './types/workout'; // Importando o tipo
+import { UserWorkout, DaySchedule } from './types/workout'; // Importando o tipo
 
 // Pegue a URL e a chave da sua página de configurações da API no Supabase
 const supabaseUrl = 'https://cfbgtgyxrwkzsdqyfkbi.supabase.co';
@@ -11,9 +11,15 @@ export type Database = {
   public: {
     Tables: {
       workouts: {
-        Row: UserWorkout; // Linha da tabela
-        Insert: Omit<UserWorkout, 'id' | 'createdAt'>; // Tipo para inserir
-        Update: Partial<UserWorkout>; // Tipo para atualizar
+        Row: UserWorkout;
+        Insert: Omit<UserWorkout, 'id' | 'createdAt'>;
+        Update: Partial<UserWorkout>;
+      };
+      // 1. Adicione a definição da nova tabela aqui
+      weekly_schedule: {
+        Row: DaySchedule;
+        Insert: Omit<DaySchedule, 'id'>;
+        Update: Partial<Omit<DaySchedule, 'id'>>;
       };
     };
   };
