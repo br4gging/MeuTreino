@@ -100,3 +100,29 @@ export interface WorkoutSession {
   details: StrengthWorkoutDetails | CardioWorkoutDetails;
   intensity?: number;
 }
+// No final de src/types/workout.ts
+export interface Profile {
+  id: string;
+  updated_at?: string;
+  display_name: string;
+}
+// ARQUIVO: src/types/workout.ts
+
+export interface CustomMeasurementField {
+  id: string;
+  user_id: string;
+  field_key: string;
+  label: string;
+  unit: string;
+}
+
+export interface BodyMeasurement {
+  id?: string;
+  user_id: string;
+  created_at?: string;
+  source: 'SCALE' | 'BIOIMPEDANCE' | 'SKINFOLD' | 'DEXA';
+  weight_kg?: number;
+  body_fat_percentage?: number;
+  details?: { [key: string]: any };
+}
+

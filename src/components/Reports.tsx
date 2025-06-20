@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO E CORRIGIDO: src/components/Reports.tsx
+// ARQUIVO COMPLETO E FINAL: src/components/Reports.tsx
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
@@ -6,6 +6,7 @@ import { WorkoutSession, StrengthWorkoutDetails } from '../types/workout';
 import { BarChart3, TrendingUp, Clock, Target, Award, Activity, AlertCircle } from 'lucide-react';
 
 const paceToSeconds = (pace: string): number => {
+  if (!pace || typeof pace !== 'string') return 0;
   const parts = pace.split(':');
   if (parts.length !== 2) return 0;
   return (parseInt(parts[0], 10) * 60) + parseInt(parts[1], 10);
@@ -43,12 +44,16 @@ const Reports: React.FC = () => {
       const { data, error } = await supabase.from('workout_sessions').select('*');
       if (error) {
         console.error("Erro ao buscar relatórios:", error);
-      } else if (data) {
-        setSessions(data as any[]);
-        const cardioSessions = data.filter(s => s.type === 'cardio' && (s.details as any).pace);
-        if (cardioSessions.length > 0) {
+        setSessions([]);
+      } else {
+        const sessionData = data || [];
+        setSessions(sessionData as any[]);
+        if (sessionData.length > 0) {
+          const cardioSessions = sessionData.filter(s => s.type === 'cardio' && (s.details as any).pace);
+          if (cardioSessions.length > 0) {
             const bestPaceAllTime = Math.min(...cardioSessions.map(s => paceToSeconds((s.details as any).pace)).filter(Boolean));
             setAllTimeBestPace(bestPaceAllTime);
+          }
         }
       }
       setLoading(false);
@@ -57,14 +62,18 @@ const Reports: React.FC = () => {
   }, []);
 
   const calculatedStats = useMemo(() => {
+    if (!sessions || sessions.length === 0) return initialStats;
+
     const now = new Date();
     const startDate = new Date();
     if (selectedPeriod === 'week') startDate.setDate(now.getDate() - 7);
     else if (selectedPeriod === 'month') startDate.setMonth(now.getMonth() - 1);
     else if (selectedPeriod === 'quarter') startDate.setMonth(now.getMonth() - 3);
+
     const filteredSessions = sessions.filter(s => new Date(s.completed_at) >= startDate);
     if (filteredSessions.length === 0) return initialStats;
-    const cardioSessions = filteredSessions.filter(s => s.type === 'cardio' && (s.details as any).pace);
+    
+    const cardioSessions = filteredSessions.filter(s => s.type === 'cardio' && (s.details as any)?.pace);
     const runningPacesInSeconds = cardioSessions.map(s => paceToSeconds((s.details as any).pace));
     const runningStats = {
       sessions: cardioSessions.length,
@@ -72,6 +81,7 @@ const Reports: React.FC = () => {
       avgPace: runningPacesInSeconds.reduce((acc, p) => acc + p, 0) / (runningPacesInSeconds.length || 1),
       bestPace: Math.min(...runningPacesInSeconds.filter(Boolean))
     };
+    
     const strengthSessions = filteredSessions.filter(s => s.type === 'strength');
     const totalCompletion = strengthSessions.reduce((acc, s) => {
         const details = s.details as StrengthWorkoutDetails;
@@ -95,6 +105,7 @@ const Reports: React.FC = () => {
       completionRate: (totalCompletion / (strengthSessions.length || 1)) * 100,
       topLifts
     };
+    
     return { running: runningStats, strength: strengthStats };
   }, [sessions, selectedPeriod]);
 
@@ -106,7 +117,7 @@ const Reports: React.FC = () => {
   }
   
   const hasData = sessions.length > 0;
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-teal-800 p-4 pb-20">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -133,7 +144,6 @@ const Reports: React.FC = () => {
               <div className="bg-white rounded-2xl p-6 shadow-xl"><div className="flex items-center gap-3 mb-3"><TrendingUp className="w-5 h-5 text-green-600" /><h3 className="font-semibold text-gray-800">Treinos Força</h3></div><p className="text-3xl font-bold text-gray-900 mb-2">{calculatedStats.strength.totalSessions} <span className="text-lg">sessões</span></p><p className="text-sm text-gray-600">{calculatedStats.strength.completionRate.toFixed(0)}% de conclusão</p></div>
               <div className="bg-white rounded-2xl p-6 shadow-xl"><div className="flex items-center gap-3 mb-3"><Award className="w-5 h-5 text-purple-600" /><h3 className="font-semibold text-gray-800">Melhor Pace</h3></div><p className="text-3xl font-bold text-gray-900 mb-2">{secondsToPace(calculatedStats.running.bestPace)} <span className="text-lg">min/km</span></p>{isPersonalBest && <p className="text-sm text-purple-600 font-medium">Recorde pessoal!</p>}</div>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white rounded-2xl p-6 shadow-xl">
                 <div className="flex items-center gap-3 mb-6"><Activity className="w-5 h-5 text-orange-600" /> <h3 className="text-xl font-bold text-gray-800">Performance na Corrida</h3></div>
@@ -147,7 +157,6 @@ const Reports: React.FC = () => {
                 <div className="mt-6 p-4 bg-gray-50 rounded-xl"><h4 className="font-semibold text-gray-800 mb-2">Análise</h4><p className="text-sm text-gray-600">{calculatedStats.strength.completionRate > 90 ? 'Sua dedicação é notável, com uma taxa de conclusão altíssima. Continue com o foco e considere aumentar as cargas progressivamente.' : 'Ótimo trabalho em manter a rotina. Tente focar em completar todas as séries para maximizar os ganhos de força e volume.'}</p></div>
               </div>
             </div>
-            
             <div className="bg-white rounded-2xl p-6 shadow-xl">
               <div className="flex items-center gap-3 mb-6"><div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><BarChart3 className="w-5 h-5 text-indigo-600" /></div><h3 className="text-xl font-bold text-gray-800">Insights de Performance</h3></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
