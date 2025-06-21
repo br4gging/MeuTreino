@@ -256,6 +256,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       if (event === 'SIGNED_IN' && session) {
         loadData();
       }
+      if (event === 'SIGNED_OUT') {
+        clearAppState();
+      }
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -278,6 +281,22 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isWorkoutInProgress, refetchWorkouts, getWeeklySchedule]);
+
+  // Função para limpar o estado do app ao fazer logout
+  const clearAppState = useCallback(() => {
+    setUserWorkouts([]);
+    setWeeklySchedule([]);
+    setActiveWorkout(null);
+    setIsWorkoutInProgress(false);
+    setTotalWorkoutTime(0);
+    setRestTimer(0);
+    setIsRestTimerRunning(false);
+    setActiveSetInfo({ exerciseName: '' });
+    setCurrentWeek(1);
+    setShowIntensityModal(false);
+    setConfirmationState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+    setActiveTab('workout');
+  }, []);
 
   const value = {
     loading, setLoading, userWorkouts, weeklySchedule, activeWorkout, isWorkoutInProgress,
