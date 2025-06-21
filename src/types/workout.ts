@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO: src/types/workout.ts
+// ARQUIVO: src/types/workout.ts (COMPLETO E FINAL)
 
 export interface DetailedSet {
   id: string;
@@ -11,56 +11,24 @@ export interface DetailedSet {
   completed: boolean;
 }
 
+export interface SetTemplate {
+  id: string;
+  type: 'warmup' | 'work';
+  value: string;
+  reps: string;
+  restTime: string; 
+}
+
 export interface Exercise {
   id: string;
   name: string;
-  warmupSets: number;
-  workSets: number;
-  reps: string;
-  rpe: string;
+  sets: SetTemplate[];
+  notes?: string;
   lastWeight?: number;
   completed: number;
   total: number;
-  restTime?: number;
-  sets?: DetailedSet[];
-}
-
-export interface DetailedWorkout extends UserWorkout {
-  exercises: (Exercise & { sets: DetailedSet[] })[];
-}
-
-export interface WorkoutSession {
-  id: string;
-  date: string;
-  workoutId: string;
-  type: 'strength' | 'cardio';
-  exercises?: Exercise[];
-  cardioData?: {
-    distance: number;
-    time: number;
-    pace: number;
-  };
-  week: number;
-  completed: boolean;
-}
-
-export interface WeekProgression {
-  week: number;
-  rpeTarget: string;
-  description: string;
-  volumeModifier: number;
-}
-
-// Interface para um dia da programação semanal
-export interface DaySchedule {
-  id?: string; // id é opcional, vem do banco mas não é criado manualmente
-  day: number;
-  name: string;
-  workoutType: 'strength' | 'cardio' | 'rest';
-  workoutId?: string | null;
-  cardioGoalType?: 'distance' | 'time' | null;
-  distance?: number | null;
-  targetTime?: number | null;
+  rpe: string;
+  detailedSets?: DetailedSet[]; 
 }
 
 export interface UserWorkout {
@@ -70,24 +38,21 @@ export interface UserWorkout {
   createdAt: string;
 }
 
-// ARQUIVO: src/types/workout.ts
-// Adicione estas novas interfaces ao final do arquivo.
+export interface DetailedWorkout extends UserWorkout {
+  exercises: (Exercise & { sets: DetailedSet[] })[];
+}
 
-// Detalhes específicos para um treino de força salvo.
 export interface StrengthWorkoutDetails {
   exercises: (Exercise & { sets: DetailedSet[] })[];
   exercisesCompleted: number;
   totalExercises: number;
 }
 
-// Detalhes específicos para um treino de cardio salvo.
 export interface CardioWorkoutDetails {
   distance: number;
-  pace: string; // Ex: "5:30 min/km"
+  pace: string;
 }
 
-// A interface principal para uma entrada no histórico.
-// Corresponde à nossa tabela 'workout_sessions'.
 export interface WorkoutSession {
   id: string;
   created_at: string;
@@ -95,18 +60,28 @@ export interface WorkoutSession {
   completed_at: string;
   name: string;
   type: 'strength' | 'cardio';
-  duration: number; // em segundos
+  duration: number;
   week: number;
   details: StrengthWorkoutDetails | CardioWorkoutDetails;
   intensity?: number;
 }
-// No final de src/types/workout.ts
+
+export interface DaySchedule {
+  id?: string;
+  day: number;
+  name: string;
+  workoutType: 'strength' | 'cardio' | 'rest';
+  workoutId?: string | null;
+  cardioGoalType?: 'distance' | 'time' | null;
+  distance?: number | null;
+  targetTime?: number | null;
+}
+
 export interface Profile {
   id: string;
   updated_at?: string;
   display_name: string;
 }
-// ARQUIVO: src/types/workout.ts
 
 export interface CustomMeasurementField {
   id: string;
@@ -116,13 +91,20 @@ export interface CustomMeasurementField {
   unit: string;
 }
 
+export interface UserMeasurementSource {
+  id: string;
+  user_id: string;
+  source_name: string;
+  created_at: string;
+}
+
 export interface BodyMeasurement {
   id?: string;
-  user_id: string;
+  user_id?: string;
   created_at?: string;
-  source: 'SCALE' | 'BIOIMPEDANCE' | 'SKINFOLD' | 'DEXA';
+  measured_at: string;
+  source: string;
   weight_kg?: number;
   body_fat_percentage?: number;
   details?: { [key: string]: any };
 }
-
