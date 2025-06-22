@@ -1,3 +1,5 @@
+// ARQUIVO: src/context/AppProvider.tsx
+
 import React, { useState, useRef, useCallback, useEffect, ReactNode } from 'react';
 import { AppContext } from './AppContext';
 import { supabase } from '../supabaseClient';
@@ -28,10 +30,34 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const workoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const restTimerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // showToast também deve ser envolvida em useCallback para estabilidade
+  // Removido shortBeep e longBeep separados
+  const beepSound = useRef<HTMLAudioElement | null>(null); 
+
+  useEffect(() => {
+    // Inicializa o objeto de áudio único
+    beepSound.current = new Audio('/sounds/beep.mp3'); // Caminho para o arquivo único beep.mp3
+  }, []);
+
+  const playBeep = useCallback((times: number, delay: number = 100) => {
+    if (beepSound.current) {
+      let count = 0;
+      const playInterval = setInterval(() => {
+        if (beepSound.current) {
+          // Resetar a reprodução para tocar rapidamente
+          beepSound.current.currentTime = 0; 
+          beepSound.current.play();
+        }
+        count++;
+        if (count >= times) {
+          clearInterval(playInterval);
+        }
+      }, delay);
+    }
+  }, []); // Dependência vazia, pois beepSound.current é um ref.
+
   const showToast = useCallback((message: string, options?: { type?: 'success' | 'error' }) => {
     options?.type === 'error' ? toast.error(message, { duration: 4000 }) : toast.success(message, { duration: 3000 });
-  }, []); // showToast não depende de nada que mude, então dependências vazias
+  }, []);
 
   const showConfirmation = useCallback((title: string, message: string, onConfirm: () => void) => {
     setConfirmationState({ isOpen: true, title, message, onConfirm });
@@ -44,15 +70,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const handleConfirm = useCallback(() => {
     confirmationState.onConfirm();
     hideConfirmation();
-  }, [confirmationState, hideConfirmation]); // Depende do estado e de outra função estável
+  }, [confirmationState, hideConfirmation]);
 
-  // refetchWorkouts agora depende apenas de setUserWorkouts e showToast, que são estáveis
   const refetchWorkouts = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase.from('workouts').select('*').eq('user_id', userId).order('createdAt', { ascending: false });
       if (error) throw error; 
       setUserWorkouts(data);
-      // console.log("Treinos atualizados no AppProvider:", data); 
     } catch (error: any) {
       console.error('Erro ao buscar treinos:', error);
       showToast('Erro ao carregar treinos: ' + (error.message || 'Erro desconhecido'), { type: 'error' });
@@ -60,7 +84,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, [setUserWorkouts, showToast]); 
   
-  // getWeeklySchedule agora depende apenas de setWeeklySchedule e showToast, que são estáveis
   const getWeeklySchedule = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase.from('weekly_schedule').select('*').eq('user_id', userId).order('day');
@@ -121,7 +144,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setLoading(false);
   }, [setUserWorkouts, setWeeklySchedule, setActiveWorkout, setIsWorkoutInProgress, setTotalWorkoutTime, setRestTimer, setIsRestTimerRunning, setActiveSetInfo, setCurrentWeek, setShowIntensityModal, setConfirmationState, setActiveTab, setLoading]);
 
-  // loadInitialData agora depende de funções estáveis ou estados primitivos
   const loadInitialData = useCallback(async (userId: string) => {
     if (isWorkoutInProgress) return;
     setLoading(true);
@@ -132,7 +154,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         }
     });
     setLoading(false); 
-  }, [isWorkoutInProgress, refetchWorkouts, getWeeklySchedule, setLoading]); // Adicionado setLoading às dependências.
+  }, [isWorkoutInProgress, refetchWorkouts, getWeeklySchedule, setLoading]);
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
@@ -155,7 +177,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return () => {
       authListener?.subscription.unsubscribe();
     };
-  }, [loadInitialData, clearAppState, setLoading]); // Adicionado setLoading às dependências.
+  }, [loadInitialData, clearAppState, setLoading]);
   
   const handleSaveSchedule = useCallback(async (newSchedule: DaySchedule[]) => {
     try {
@@ -172,8 +194,6 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         target_time: day.targetTime, 
         user_id: user.id
       }));
-
-      // console.log("Dados da programação para salvar:", scheduleToSave); 
 
       const { error } = await supabase.from('weekly_schedule').upsert(scheduleToSave, { onConflict: 'user_id,day' });
       if (error) throw error;
@@ -298,7 +318,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     setLoading(false);
   }, [setLoading, showToast]);
   
-  const onSaveWorkout = useCallback(() => { setShowIntensityModal(true); }, [setShowIntensityModal]); // Depende de setShowIntensityModal
+  const onSaveWorkout = useCallback(() => { setShowIntensityModal(true); }, [setShowIntensityModal]);
+
+  const onCancelWorkout = useCallback(() => {
+    setIsWorkoutInProgress(false);
+    setActiveWorkout(null);
+    setTotalWorkoutTime(0);
+    setRestTimer(0);
+    setIsRestTimerRunning(false);
+    setActiveSetInfo({ exerciseName: '' });
+  }, []);
 
   const onSetChange = useCallback((exId: string, setId: string, field: 'achievedReps' | 'achievedLoad' | 'restTime', value: string) => {
     if (!activeWorkout) return;
@@ -310,7 +339,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       )
     };
     setActiveWorkout(newWorkout as DetailedWorkout);
-  }, [activeWorkout, setActiveWorkout]); // Depende de activeWorkout e setActiveWorkout
+  }, [activeWorkout, setActiveWorkout]);
 
   const onToggleSetComplete = useCallback((exId: string, setId: string) => {
     if (!activeWorkout) return;
@@ -344,12 +373,11 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       setRestTimer(restTime);
       setIsRestTimerRunning(true);
     }
-  }, [activeWorkout, setActiveWorkout, setActiveSetInfo, setRestTimer, setIsRestTimerRunning]); // Dependências relevantes
+  }, [activeWorkout, setActiveWorkout, setActiveSetInfo, setRestTimer, setIsRestTimerRunning]);
 
   const onStopRestimer = useCallback(() => setIsRestTimerRunning(false), [setIsRestTimerRunning]);
   const onWeekChange = useCallback((week: number) => setCurrentWeek(week), [setCurrentWeek]);
 
-  // Estes useEffects dependem apenas de estados primitivos ou de funções de setter
   useEffect(() => {
     if (isWorkoutInProgress) {
       workoutTimerRef.current = setInterval(() => setTotalWorkoutTime(p => p + 1), 1000);
@@ -358,25 +386,46 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   }, [isWorkoutInProgress, setTotalWorkoutTime]);
 
   useEffect(() => {
-    if (isRestTimerRunning && restTimer > 0) {
-      restTimerIntervalRef.current = setInterval(() => setRestTimer(p => p > 0 ? p - 1 : 0), 1000);
-    } else if (isRestTimerRunning && restTimer <= 0) {
-      setIsRestTimerRunning(false);
+    if (isRestTimerRunning && restTimer >= 0) { // restTimer pode ir para 0
+      restTimerIntervalRef.current = setInterval(() => {
+        setRestTimer(p => {
+          const newTime = p - 1;
+          // Lógica dos toques sonoros
+          if (newTime === 10) { // Bipa uma vez aos 10 segundos
+            playBeep(1); 
+          } else if (newTime === -1 && p === 0) { // Toca 3 vezes quando o timer realmente zera (foi 0 e passou para -1)
+            playBeep(3, 100); // 3 bipes rápidos com 100ms de atraso
+            setIsRestTimerRunning(false); // Para o timer
+            return 0; // Garante que não vai para valores negativos
+          }
+          return newTime >= 0 ? newTime : 0; // Garante que o timer não fica negativo
+        });
+      }, 1000);
+    } else if (isRestTimerRunning && restTimer < 0) { // Caso o timer de alguma forma passe de zero antes do clearInterval
+        setIsRestTimerRunning(false);
+        setRestTimer(0);
     }
-    return () => { if (restTimerIntervalRef.current) clearInterval(restTimerIntervalRef.current); };
-  }, [isRestTimerRunning, restTimer, setRestTimer, setIsRestTimerRunning]); // Adicionado setRestTimer e setIsRestTimerRunning às dependências
+    return () => {
+      if (restTimerIntervalRef.current) clearInterval(restTimerIntervalRef.current);
+      // Ao limpar o intervalo, garantir que os bipes finais toquem se o timer for interrompido manualmente
+      if (restTimer <= 0 && isRestTimerRunning) { // Se o timer estiver em 0 ou menos e ainda "rodando" quando for parado
+          playBeep(3, 100);
+      }
+    };
+  }, [isRestTimerRunning, restTimer, setRestTimer, setIsRestTimerRunning, playBeep]);
   
   const value = {
     loading, setLoading, userWorkouts, weeklySchedule, activeWorkout, isWorkoutInProgress,
     totalWorkoutTime, restTimer, isRestTimerRunning, activeSetInfo, currentWeek, confirmationState,
     activeTab, setActiveTab, showIntensityModal, setShowIntensityModal,
-    refetchWorkouts: useCallback(async () => { // Envolvido em useCallback para estabilidade
+    refetchWorkouts: useCallback(async () => {
         const {data: {user}} = await supabase.auth.getUser();
         if(user) await loadInitialData(user.id);
     }, [loadInitialData]), 
     handleSaveSchedule, onStartWorkout, onSaveWorkout,
     confirmSaveWorkoutWithIntensity, onSaveCardio, onSetChange, onToggleSetComplete,
-    onStopRestimer, onWeekChange, onSaveMeasurement, showToast, showConfirmation, hideConfirmation
+    onStopRestimer, onWeekChange, onSaveMeasurement, showToast, showConfirmation, hideConfirmation,
+    onCancelWorkout
   };
 
   return (

@@ -1,3 +1,5 @@
+// ARQUIVO: src/context/AppContext.tsx
+
 import { createContext, useContext, ReactNode } from 'react';
 import { UserWorkout, DaySchedule, DetailedWorkout, BodyMeasurement } from '../types/workout';
 
@@ -39,6 +41,7 @@ export interface AppState {
   showToast: (message: string, options?: { type?: 'success' | 'error' }) => void;
   showConfirmation: (title: string, message: string, onConfirm: () => void) => void;
   hideConfirmation: () => void;
+  onCancelWorkout: () => void; // Adicionado aqui
 }
 
 export const AppContext = createContext<AppState | undefined>(undefined);

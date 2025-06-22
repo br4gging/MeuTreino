@@ -1,3 +1,5 @@
+// ARQUIVO: src/components/WorkoutDashboard/index.tsx
+
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { MeasurementModal } from '../MeasurementModal';
@@ -5,9 +7,13 @@ import WeeklyProgressPanel from './WeeklyProgressPanel';
 import BodyTrackingPanel from './BodyTrackingPanel';
 import CardioConfirmationModal from './CardioConfirmationModal';
 import { formatTime, formatDateHeader, formatDateSubheader } from './utils';
-import { Dumbbell, ArrowLeft, ArrowRight, Check, Timer, Activity, Zap, X } from 'lucide-react';
+import { Dumbbell, ArrowLeft, ArrowRight, Check, Timer, Activity, Zap, X, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserWorkout } from '../../types/workout';
+import { IMaskInput } from 'react-imask';
+import IMask from 'imask'; // Importar IMask aqui para usar MaskedRange
+import { formatKmToIMaskNumber, formatKmForDisplay, formatMinutesSecondsInput, getKmUnmaskedValue, getMinutesSecondsUnmaskedValue } from '../../utils/inputMasks';
+
 
 const weekProgression = [
   { week: 1, rpeTarget: 'RPE 6-7', description: 'Foco na técnica e construção de volume base' },
@@ -21,7 +27,8 @@ const WorkoutDashboard: React.FC = () => {
     userWorkouts, weeklySchedule, loading, activeWorkout, isWorkoutInProgress,
     totalWorkoutTime, restTimer, isRestTimerRunning, activeSetInfo, currentWeek,
     onStartWorkout, onSaveWorkout, onSetChange, onToggleSetComplete,
-    onStopRestimer, onWeekChange, onSaveCardio, onSaveMeasurement, showToast
+    onStopRestimer, onWeekChange, onSaveCardio, onSaveMeasurement, showToast, showConfirmation,
+    onCancelWorkout
   } = useAppContext();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -30,8 +37,10 @@ const WorkoutDashboard: React.FC = () => {
   const [isRestDay, setIsRestDay] = useState(false);
   const [isUnscheduledStrengthDay, setIsUnscheduledStrengthDay] = useState(false);
   const [openExerciseId, setOpenExerciseId] = useState<string | null>(null);
-  const [userInputDistance, setUserInputDistance] = useState('');
-  const [userInputTime, setUserInputTime] = useState('');
+
+  const [displayInputDistance, setDisplayInputDistance] = useState('');
+  const [displayInputTime, setDisplayInputTime] = useState('');
+
   const [calculatedPace, setCalculatedPace] = useState<string | null>(null);
   const [showCardioConfirmation, setShowCardioConfirmation] = useState(false);
   const [isMeasurementModalOpen, setMeasurementModalOpen] = useState(false);
@@ -40,7 +49,7 @@ const WorkoutDashboard: React.FC = () => {
     if (isWorkoutInProgress) return;
     const dayOfWeek = selectedDate.getDay();
     const todaySchedule = weeklySchedule.find(s => s.day === dayOfWeek);
-    
+
     setWorkoutForToday(null);
     setTodayCardio(null);
     setIsRestDay(false);
@@ -51,7 +60,6 @@ const WorkoutDashboard: React.FC = () => {
         case 'strength': {
           const workout = userWorkouts.find(w => w.id === todaySchedule.workoutId);
           if (workout) {
-            // Limpeza dos dados para garantir que tudo tenha um ID
             const cleanWorkout = {
               ...workout,
               exercises: workout.exercises.map(ex => ({
@@ -64,8 +72,6 @@ const WorkoutDashboard: React.FC = () => {
               }))
             };
             setWorkoutForToday(cleanWorkout);
-            // Mova o console.log para DENTRO deste if, onde workoutForToday é realmente setado
-            console.log("Workout for today updated:", cleanWorkout);
             if (cleanWorkout.exercises.length > 0) {
               setOpenExerciseId(cleanWorkout.exercises[0].id);
             }
@@ -76,8 +82,9 @@ const WorkoutDashboard: React.FC = () => {
         }
         case 'cardio':
           setTodayCardio(todaySchedule);
-          setUserInputDistance(todaySchedule.distance?.toString() || '');
-          setUserInputTime(todaySchedule.targetTime?.toString() || '');
+          // Resetar para vazio para que os placeholders apareçam
+          setDisplayInputDistance('');
+          setDisplayInputTime('');
           break;
         default:
           setIsRestDay(true);
@@ -86,25 +93,21 @@ const WorkoutDashboard: React.FC = () => {
     } else {
       setIsRestDay(true);
     }
-  }, [selectedDate, weeklySchedule, userWorkouts, isWorkoutInProgress]); // Remova 'workoutForToday' daqui
+  }, [selectedDate, weeklySchedule, userWorkouts, isWorkoutInProgress]);
 
   useEffect(() => {
-    const dist = parseFloat(userInputDistance);
-    const time = parseFloat(userInputTime);
-    if (dist > 0 && time > 0) {
-      const paceDec = time / dist;
-      const paceMin = Math.floor(paceDec);
-      const paceSec = Math.round((paceDec - paceMin) * 60);
-      setCalculatedPace(`${paceMin}:${paceSec.toString().padStart(2, '0')}`);
+    const dist = getKmUnmaskedValue(displayInputDistance);
+    const timeInSeconds = getMinutesSecondsUnmaskedValue(displayInputTime);
+
+    if (dist && dist > 0 && timeInSeconds && timeInSeconds > 0) {
+      const paceInMinutesPerKm = (timeInSeconds / 60) / dist;
+      const minutes = Math.floor(paceInMinutesPerKm);
+      const seconds = Math.round((paceInMinutesPerKm - minutes) * 60);
+      setCalculatedPace(`${minutes}:${seconds.toString().padStart(2, '0')}`);
     } else {
       setCalculatedPace(null);
     }
-  }, [userInputDistance, userInputTime]);
-
-  const handleCardioChange = (type: 'distance' | 'time', val: string) => {
-    if (type === 'distance') setUserInputDistance(val);
-    if (type === 'time') setUserInputTime(val);
-  };
+  }, [displayInputDistance, displayInputTime]);
 
   const handleDateChange = (days: number) => {
     const newDate = new Date(selectedDate);
@@ -113,22 +116,39 @@ const WorkoutDashboard: React.FC = () => {
   };
 
   const handleFinalizeCardio = () => {
-    if (!userInputDistance || !userInputTime || !calculatedPace) {
-      showToast("Por favor, preencha a distância e o tempo.", { type: 'error' });
+    const finalDistance = getKmUnmaskedValue(displayInputDistance);
+    const finalTimeInSeconds = getMinutesSecondsUnmaskedValue(displayInputTime);
+
+    if (finalDistance === null || finalDistance <= 0 || finalTimeInSeconds === null || finalTimeInSeconds <= 0 || !calculatedPace) {
+      showToast("Por favor, preencha a distância e o tempo corretamente.", { type: 'error' });
       return;
     }
     setShowCardioConfirmation(true);
   };
 
   const confirmSaveCardio = () => {
-    if (userInputDistance && userInputTime && calculatedPace) {
-      onSaveCardio({ distance: parseFloat(userInputDistance), time: parseFloat(userInputTime), pace: calculatedPace });
+    const finalDistance = getKmUnmaskedValue(displayInputDistance);
+    const finalTimeInSeconds = getMinutesSecondsUnmaskedValue(displayInputTime);
+
+    if (finalDistance !== null && finalTimeInSeconds !== null && calculatedPace) {
+      onSaveCardio({ distance: finalDistance, time: finalTimeInSeconds, pace: calculatedPace });
     }
     setShowCardioConfirmation(false);
   };
 
+  const handleCancelWorkoutClick = () => {
+    showConfirmation(
+      "Cancelar Treino?",
+      "Tem certeza que deseja cancelar o treino em andamento? Todo o progresso não salvo será perdido.",
+      () => {
+        onCancelWorkout();
+        showToast("Treino cancelado.");
+      }
+    );
+  };
+
   const isExerciseComplete = (ex: any) => ex.sets.every((s: any) => s.completed);
-  
+
   return (
     <div className="min-h-screen p-4 pb-24 animate-fade-in-up">
       <div className="max-w-4xl mx-auto space-y-6 relative">
@@ -171,7 +191,7 @@ const WorkoutDashboard: React.FC = () => {
             <BodyTrackingPanel onOpenMeasurementModal={() => setMeasurementModalOpen(true)} />
           </>
         )}
-        
+
         {workoutForToday && !isWorkoutInProgress && (
           <div className="card">
             <div className="flex flex-col sm:flex-row items-center justify-between mb-4">
@@ -196,6 +216,9 @@ const WorkoutDashboard: React.FC = () => {
                     <div className="flex items-center gap-4">
                         <span className="font-semibold text-lg text-text-secondary bg-black/20 border border-white/10 px-3 py-1 rounded-lg">{formatTime(totalWorkoutTime, true)}</span>
                         <button onClick={onSaveWorkout} className="btn bg-success text-white flex items-center gap-2"><Check size={16} /> Salvar Treino</button>
+                        <button onClick={handleCancelWorkoutClick} className="btn bg-error text-white flex items-center gap-2">
+                          <X size={16} /> Cancelar
+                        </button>
                     </div>
                 </div>
                 <div className="space-y-4">
@@ -243,18 +266,64 @@ const WorkoutDashboard: React.FC = () => {
                 </div>
             </div>
         )}
-        
+
         {todayCardio && !isWorkoutInProgress && (
           <div className="card bg-secondary-gradient/20 border-secondary">
             <div className="flex items-center gap-3 mb-6"><Activity className="w-6 h-6 text-accent" /> <h2 className="text-2xl font-bold text-text-primary">Cardio do Dia</h2></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-2">Distância (km)</label>
-                  <input type="number" placeholder="0.0" value={userInputDistance} onChange={(e) => handleCardioChange('distance', e.target.value)} className="w-full bg-black/20 border-white/20 rounded-lg p-3 text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-accent" />
+                  <IMaskInput
+                    mask={Number}
+                    // NOVIDADE: Passar um objeto de configuração completo para `mask`
+                    mask={
+                        {
+                            mask: Number,
+                            radix: ",",
+                            scale: 2,
+                            thousandsSeparator: "",
+                            padFractionalZeros: true, // Garante que "5" vira "5,00"
+                            normalizeZeros: true, // Garante que "05,00" vira "5,00"
+                            autofix: true, // Tenta auto-ajustar a entrada (e.g. "332" para "3,32")
+                            signed: false, // Remove o warning, agora é passado corretamente para o IMask
+                            mapToRadix: ['.'], // Para converter . em , ao digitar
+                            // Aqui você pode adicionar outras opções específicas para NumberMask
+                        }
+                    }
+                    value={displayInputDistance} // Passa o valor que o IMask vai formatar
+                    onAccept={(value: string) => setDisplayInputDistance(value)}
+                    placeholder={todayCardio.distance ? formatKmForDisplay(todayCardio.distance) : "0,00"} // Usar formatKmForDisplay para placeholder
+                    className="w-full bg-black/20 border-white/20 rounded-lg p-3 text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-text-secondary mb-2">Tempo (minutos)</label>
-                    <input type="number" placeholder="0" value={userInputTime} onChange={(e) => handleCardioChange('time', e.target.value)} className="w-full bg-black/20 border-white/20 rounded-lg p-3 text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-accent" />
+                    <IMaskInput
+                      mask="HH:MM"
+                      lazy={false}
+                      overwrite={true}
+                      placeholderChar="0"
+                      blocks={{
+                        HH: {
+                          mask: IMask.MaskedRange,
+                          from: 0,
+                          to: 99,
+                          autofix: true,
+                          maxLength: 2
+                        },
+                        MM: {
+                          mask: IMask.MaskedRange,
+                          from: 0,
+                          to: 59,
+                          autofix: true,
+                          maxLength: 2
+                        },
+                      }}
+                      value={displayInputTime}
+                      onAccept={(value: string) => setDisplayInputTime(value)}
+                      placeholder="00:00"
+                      className="w-full bg-black/20 border-white/20 rounded-lg p-3 text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
                 </div>
             </div>
             {calculatedPace && (<div className="bg-black/20 rounded-xl p-4 mt-4 text-center"><p className="text-sm text-text-muted font-medium">Seu Pace</p><p className="metric-value">{calculatedPace} <span className="text-lg text-text-secondary font-medium">min/km</span></p></div>)}
@@ -278,10 +347,10 @@ const WorkoutDashboard: React.FC = () => {
           </div>
         )}
 
-        <MeasurementModal 
-          isOpen={isMeasurementModalOpen} 
-          onClose={() => setMeasurementModalOpen(false)} 
-          onSave={onSaveMeasurement} 
+        <MeasurementModal
+          isOpen={isMeasurementModalOpen}
+          onClose={() => setMeasurementModalOpen(false)}
+          onSave={onSaveMeasurement}
         />
 
         <CardioConfirmationModal

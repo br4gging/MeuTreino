@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Adicionado 'useCallback'
+// ARQUIVO: src/components/WorkoutManagement/index.tsx
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import WeeklySchedulePanel from './WeeklySchedulePanel';
-import UserWorkoutsList from './UserWorkoutsList';
-import WorkoutForm from './WorkoutForm';
+import WeeklySchedulePanel from './WeeklySchedulePanel'; // Já está correto
+import UserWorkoutsList from './UserWorkoutsList'; // Já está correto
+import WorkoutForm from './WorkoutForm'; // Já está correto
 import { UserWorkout, DaySchedule, Exercise, SetTemplate } from '../../types/workout';
 import { createWorkout, updateWorkout, deleteWorkout } from '../../lib/workoutApi';
 import { supabase } from '../../supabaseClient';
@@ -51,7 +52,7 @@ const WorkoutManagement: React.FC = () => {
       }
       return s;
     }));
-  }, [isEditingSchedule, setSchedule]); // setSchedule é uma função de setter, isEditingSchedule é um primitivo
+  }, [isEditingSchedule, setSchedule]);
 
   const handleEditClick = useCallback(() => setIsEditingSchedule(true), [setIsEditingSchedule]);
 
@@ -101,7 +102,7 @@ const WorkoutManagement: React.FC = () => {
         }
       }
     );
-  }, [showConfirmation, showToast, refetchWorkouts]); // Dependências relevantes
+  }, [showConfirmation, showToast, refetchWorkouts]);
 
   // --- WorkoutForm Handlers ---
   const handleNameChange = useCallback((name: string) => setNewWorkoutName(name), [setNewWorkoutName]);
@@ -134,7 +135,7 @@ const WorkoutManagement: React.FC = () => {
 
   const handleRemoveSet = useCallback((exerciseId: string, setId: string) => {
     setExercises(prev => prev.map(ex => (ex.id === exerciseId ? { ...ex, sets: ex.sets.filter(s => s.id !== setId) } : ex)));
-  }, [setExercises]); // <--- A FUNÇÃO EM QUESTÃO
+  }, [setExercises]);
 
   const handleSetChange = useCallback((exerciseId: string, setId: string, field: string, value: string) => {
     setExercises(prev => prev.map(ex => (ex.id === exerciseId ? { ...ex, sets: ex.sets.map(s => s.id === setId ? { ...s, [field]: value } : s) } : ex)));
@@ -162,7 +163,7 @@ const WorkoutManagement: React.FC = () => {
     } catch (error: any) {
       showToast('Erro ao salvar treino: ' + (error.message || error), { type: 'error' });
     }
-  }, [editingWorkout, newWorkoutName, exercises, showToast, setIsCreatingWorkout, setEditingWorkout, setNewWorkoutName, setExercises, refetchWorkouts]); // Adicionado todas as dependências
+  }, [editingWorkout, newWorkoutName, exercises, showToast, setIsCreatingWorkout, setEditingWorkout, setNewWorkoutName, setExercises, refetchWorkouts]);
 
   return (
     <div className="min-h-screen p-4 pb-24 animate-fade-in-up">
