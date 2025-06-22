@@ -44,131 +44,214 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     confirmationState.onConfirm();
     hideConfirmation();
   };
-
-  const getWeeklySchedule = useCallback(async () => {
+  
+  const refetchWorkouts = useCallback(async (userId: string) => {
+    const { data, error } = await supabase.from('workouts').select('*').eq('user_id', userId).order('createdAt', { ascending: false });
+    if (data) setUserWorkouts(data);
+    if (error) console.error('Erro ao buscar treinos:', error);
+  }, []);
+  
+  const getWeeklySchedule = useCallback(async (userId: string) => {
     try {
-      const { data, error } = await supabase.from('weekly_schedule').select('*').order('day');
+      const { data, error } = await supabase.from('weekly_schedule').select('*').eq('user_id', userId).order('day');
       if (error) throw error;
-      if (data && data.length === 7) {
+      if (data && data.length > 0) {
         const transformedData = data.map((day: any) => ({
-          id: day.id, day: day.day, name: day.name, workoutType: day.workout_type, workoutId: day.workout_id, cardioGoalType: day.cardio_goal_type, distance: day.distance, targetTime: day.target_time,
+          ...day,
+          workoutType: day.workout_type, 
+          workoutId: day.workout_id, 
+          cardioGoalType: day.cardio_goal_type, 
+          targetTime: day.target_time,
         }));
         setWeeklySchedule(transformedData);
       } else {
         const scheduleToSave = defaultSchedule.map(({ day, name, workoutType, workoutId, distance, targetTime, cardioGoalType }) => ({
-          day, name, workout_type: workoutType, workout_id: workoutId, distance, target_time: targetTime, cardio_goal_type: cardioGoalType
+          day, name, workout_type: workoutType, workout_id: workoutId, distance, target_time: targetTime, cardio_goal_type: cardioGoalType, user_id: userId,
         }));
-        await supabase.from('weekly_schedule').upsert(scheduleToSave, { onConflict: 'day' });
-        setWeeklySchedule(defaultSchedule);
+        await supabase.from('weekly_schedule').upsert(scheduleToSave, { onConflict: 'user_id,day' });
+        setWeeklySchedule(scheduleToSave);
       }
     } catch (error) {
       console.error('Erro ao buscar programação semanal:', error);
       setWeeklySchedule(defaultSchedule);
     }
   }, []);
-
-  const refetchWorkouts = useCallback(async () => {
-    const { data, error } = await supabase.from('workouts').select('*').order('createdAt', { ascending: false });
-    if (data) setUserWorkouts(data as any);
-    if (error) console.error('Erro ao buscar treinos:', error);
+  
+  const clearAppState = useCallback(() => {
+    setUserWorkouts([]);
+    setWeeklySchedule([]);
+    setActiveWorkout(null);
+    setIsWorkoutInProgress(false);
+    setTotalWorkoutTime(0);
+    setRestTimer(0);
+    setIsRestTimerRunning(false);
+    setActiveSetInfo({ exerciseName: '' });
+    setCurrentWeek(1);
+    setShowIntensityModal(false);
+    setConfirmationState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+    setActiveTab('workout');
+    setLoading(false);
   }, []);
 
+  const loadInitialData = useCallback(async (userId: string) => {
+    if (isWorkoutInProgress) return;
+    setLoading(true);
+    await Promise.all([refetchWorkouts(userId), getWeeklySchedule(userId)]);
+    setLoading(false);
+  }, [isWorkoutInProgress, refetchWorkouts, getWeeklySchedule]);
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        loadInitialData(session.user.id);
+      }
+      if (event === 'SIGNED_OUT') {
+        clearAppState();
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        loadInitialData(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, [loadInitialData, clearAppState]);
+  
   const handleSaveSchedule = useCallback(async (newSchedule: DaySchedule[]) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+      
       const scheduleToSave = newSchedule.map(day => ({
-        day: day.day, name: day.name, workout_type: day.workoutType, workout_id: day.workoutId || null, cardio_goal_type: day.cardioGoalType, distance: day.distance, target_time: day.targetTime
+        day: day.day, name: day.name, workout_type: day.workoutType, workout_id: day.workoutId || null, cardio_goal_type: day.cardioGoalType, distance: day.distance, target_time: day.targetTime, user_id: user.id
       }));
-      const { error } = await supabase.from('weekly_schedule').upsert(scheduleToSave, { onConflict: 'day' });
+      const { error } = await supabase.from('weekly_schedule').upsert(scheduleToSave, { onConflict: 'user_id,day' });
       if (error) throw error;
-      await getWeeklySchedule();
+      await getWeeklySchedule(user.id);
       showToast('Programação salva com sucesso!');
       return true;
     } catch (error: any) {
       showToast('Erro ao salvar a programação.', { type: 'error' });
       return false;
     }
-  }, [getWeeklySchedule]);
+  }, [getWeeklySchedule, showToast]);
+
+  const onStartWorkout = useCallback((workoutTemplate: UserWorkout) => {
+    const detailedWorkout: DetailedWorkout = {
+      ...workoutTemplate,
+      exercises: workoutTemplate.exercises.map((ex) => ({
+        ...ex,
+        sets: ex.sets.map((setTemplate, index) => ({
+          id: setTemplate.id,
+          type: setTemplate.type,
+          setNumber: index + 1,
+          targetReps: setTemplate.reps,
+          targetValue: setTemplate.value, // <-- CORREÇÃO: Mapeando o RIR / % de Carga
+          restTime: parseInt(String(setTemplate.restTime), 10) || 90,
+          lastWeight: setTemplate.lastWeight,
+          achievedReps: '',
+          achievedLoad: '',
+          completed: false,
+        })),
+      })),
+    };
+    setActiveWorkout(detailedWorkout);
+    setIsWorkoutInProgress(true);
+    setTotalWorkoutTime(0);
+  }, []);
 
   const confirmSaveWorkoutWithIntensity = useCallback(async (intensity: number) => {
     if (!activeWorkout) return;
     setShowIntensityModal(false);
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        showToast("Usuário não autenticado.", { type: 'error' });
+        setLoading(false);
+        return;
+    }
     const exercisesCompleted = activeWorkout.exercises.filter(ex => ex.sets.length > 0 && ex.sets.every(s => s.completed)).length;
     const details: StrengthWorkoutDetails = { exercises: activeWorkout.exercises, exercisesCompleted, totalExercises: activeWorkout.exercises.length };
     const sessionData: Omit<WorkoutSession, 'id' | 'created_at' | 'user_id' | 'completed_at'> = { name: activeWorkout.name, type: 'strength', duration: totalWorkoutTime, week: currentWeek, intensity, details };
-    const { error: sessionError } = await supabase.from('workout_sessions').insert(sessionData as any);
-    if (sessionError) {
-      showToast('Houve um erro ao salvar seu treino.', { type: 'error' });
-      setLoading(false);
-      return;
-    }
+    
+    await supabase.from('workout_sessions').insert({ ...sessionData, user_id: user.id });
+    
     try {
       const { data: originalWorkoutData, error: fetchError } = await supabase.from('workouts').select('exercises').eq('id', activeWorkout.id).single();
-      if (fetchError) throw fetchError;
-      const originalExercises = originalWorkoutData.exercises as Exercise[];
-      const updatedExercises = originalExercises.map(originalEx => {
-        const executedEx = activeWorkout.exercises.find(ex => ex.name === originalEx.name);
-        if (executedEx) {
-          const loads = executedEx.sets.map(s => parseFloat(s.achievedLoad)).filter(l => !isNaN(l) && l > 0);
-          if (loads.length > 0) {
-            const maxLoad = Math.max(...loads);
-            return { ...originalEx, lastWeight: maxLoad };
+      if (fetchError || !originalWorkoutData) throw new Error("Molde do treino original não encontrado");
+
+      const exercisesToUpdate = JSON.parse(JSON.stringify(originalWorkoutData.exercises)) as Exercise[];
+      
+      for (const executedEx of activeWorkout.exercises) {
+        const originalExToUpdate = exercisesToUpdate.find(ex => ex.id === executedEx.id);
+        if (!originalExToUpdate) continue;
+
+        for (const executedSet of executedEx.sets) {
+          const originalSetToUpdate = originalExToUpdate.sets.find(s => s.id === executedSet.id);
+          
+          if (originalSetToUpdate && executedSet.achievedLoad) {
+            const newLoad = parseFloat(executedSet.achievedLoad);
+            if (!isNaN(newLoad) && newLoad > 0) {
+              originalSetToUpdate.lastWeight = newLoad;
+            }
           }
         }
-        return originalEx;
-      });
-      await supabase.from('workouts').update({ exercises: updatedExercises as any }).eq('id', activeWorkout.id);
+      }
+
+      await supabase.from('workouts').update({ exercises: exercisesToUpdate }).eq('id', activeWorkout.id);
+
     } catch (error) {
       console.error("Erro ao atualizar a última carga no molde do treino:", error);
     } finally {
-      showToast(`Treino Salvo! Duração: ${Math.floor(totalWorkoutTime / 60)} minutos.`);
+      showToast(`Treino Salvo!`);
       setIsWorkoutInProgress(false);
       setActiveWorkout(null);
       setTotalWorkoutTime(0);
-      refetchWorkouts();
+      await refetchWorkouts(user.id);
       setLoading(false);
     }
-  }, [activeWorkout, totalWorkoutTime, currentWeek, refetchWorkouts]);
+  }, [activeWorkout, totalWorkoutTime, currentWeek, showToast, setLoading, setShowIntensityModal, refetchWorkouts]);
 
   const onSaveCardio = useCallback(async (cardioData: { distance: number; time: number; pace: string }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
     const details: CardioWorkoutDetails = { distance: cardioData.distance, pace: cardioData.pace };
-    const sessionData: Omit<WorkoutSession, 'id' | 'created_at' | 'user_id' | 'completed_at' | 'intensity'> = {
-      name: `Corrida ${cardioData.distance}km`, type: 'cardio', duration: cardioData.time * 60, week: currentWeek, details
+    const sessionData: Partial<WorkoutSession> = {
+      name: `Corrida ${cardioData.distance}km`, type: 'cardio', duration: cardioData.time * 60, week: currentWeek, details, user_id: user.id
     };
     try {
-      const { error } = await supabase.from('workout_sessions').insert(sessionData as any);
+      const { error } = await supabase.from('workout_sessions').insert(sessionData);
       if (error) throw error;
       showToast('Corrida salva com sucesso!');
     } catch (error) {
       showToast('Houve um erro ao salvar sua corrida.', { type: 'error' });
     }
-  }, [currentWeek]);
+  }, [currentWeek, showToast]);
 
   const onSaveMeasurement = useCallback(async (measurement: BodyMeasurement) => {
     setLoading(true);
-    const { error } = await supabase.from('body_measurements').insert(measurement as any);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from('body_measurements').insert({ ...measurement, user_id: user.id });
     if (error) {
       showToast("Erro ao salvar medição: " + error.message, { type: 'error' });
     } else {
       showToast("Medição salva com sucesso!");
     }
     setLoading(false);
-  }, []);
-
-  const onStartWorkout = useCallback((workout: DetailedWorkout) => {
-    setActiveWorkout(workout);
-    setIsWorkoutInProgress(true);
-    setTotalWorkoutTime(0);
-  }, []);
-
-  const onSaveWorkout = useCallback(() => {
-    setShowIntensityModal(true);
-  }, []);
+  }, [setLoading, showToast]);
+  
+  const onSaveWorkout = useCallback(() => { setShowIntensityModal(true); }, []);
 
   const onSetChange = useCallback((exId: string, setId: string, field: 'achievedReps' | 'achievedLoad' | 'restTime', value: string) => {
     if (!activeWorkout) return;
-    const newWorkout = {
-      ...activeWorkout,
+    const newWorkout = { ...activeWorkout,
       exercises: activeWorkout.exercises.map(ex =>
         (ex.id === exId)
           ? { ...ex, sets: ex.sets.map(s => (s.id === setId) ? { ...s, [field]: value } : s) }
@@ -188,9 +271,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       exercises: activeWorkout.exercises.map(ex => {
         if (ex.id === exId) {
           exerciseName = ex.name;
-          return {
-            ...ex,
-            sets: ex.sets.map(s => {
+          return { ...ex, sets: ex.sets.map(s => {
               if (s.id === setId) {
                 if (!s.completed) {
                   shouldStartTimer = true;
@@ -214,95 +295,34 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     }
   }, [activeWorkout]);
 
-  const onStopRestimer = useCallback(() => {
-    setIsRestTimerRunning(false);
-  }, []);
-
-  const onWeekChange = useCallback((week: number) => {
-    setCurrentWeek(week);
-  }, []);
+  const onStopRestimer = useCallback(() => setIsRestTimerRunning(false), []);
+  const onWeekChange = useCallback((week: number) => setCurrentWeek(week), []);
 
   useEffect(() => {
     if (isWorkoutInProgress) {
       workoutTimerRef.current = setInterval(() => setTotalWorkoutTime(p => p + 1), 1000);
-    } else if (workoutTimerRef.current) {
-      clearInterval(workoutTimerRef.current);
-    }
-    return () => {
-      if (workoutTimerRef.current) clearInterval(workoutTimerRef.current);
-    };
+    } else if (workoutTimerRef.current) clearInterval(workoutTimerRef.current);
+    return () => { if (workoutTimerRef.current) clearInterval(workoutTimerRef.current); };
   }, [isWorkoutInProgress]);
 
   useEffect(() => {
     if (isRestTimerRunning && restTimer > 0) {
       restTimerIntervalRef.current = setInterval(() => setRestTimer(p => p > 0 ? p - 1 : 0), 1000);
-    } else if (isRestTimerRunning && restTimer === 0) {
+    } else if (isRestTimerRunning && restTimer <= 0) {
       setIsRestTimerRunning(false);
     }
-    return () => {
-      if (restTimerIntervalRef.current) clearInterval(restTimerIntervalRef.current);
-    };
+    return () => { if (restTimerIntervalRef.current) clearInterval(restTimerIntervalRef.current); };
   }, [isRestTimerRunning, restTimer]);
-
-  useEffect(() => {
-    const loadData = async () => {
-      if (isWorkoutInProgress) return;
-      setLoading(true);
-      await Promise.all([refetchWorkouts(), getWeeklySchedule()]);
-      setLoading(false);
-    };
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        loadData();
-      }
-      if (event === 'SIGNED_OUT') {
-        clearAppState();
-      }
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        loadData();
-      } else {
-        setLoading(false);
-      }
-    });
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        loadData();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isWorkoutInProgress, refetchWorkouts, getWeeklySchedule]);
-
-  // Função para limpar o estado do app ao fazer logout
-  const clearAppState = useCallback(() => {
-    setUserWorkouts([]);
-    setWeeklySchedule([]);
-    setActiveWorkout(null);
-    setIsWorkoutInProgress(false);
-    setTotalWorkoutTime(0);
-    setRestTimer(0);
-    setIsRestTimerRunning(false);
-    setActiveSetInfo({ exerciseName: '' });
-    setCurrentWeek(1);
-    setShowIntensityModal(false);
-    setConfirmationState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
-    setActiveTab('workout');
-  }, []);
-
+  
   const value = {
     loading, setLoading, userWorkouts, weeklySchedule, activeWorkout, isWorkoutInProgress,
     totalWorkoutTime, restTimer, isRestTimerRunning, activeSetInfo, currentWeek, confirmationState,
     activeTab, setActiveTab, showIntensityModal, setShowIntensityModal,
-    refetchWorkouts, handleSaveSchedule, onStartWorkout, onSaveWorkout,
+    refetchWorkouts: async () => {
+        const {data: {user}} = await supabase.auth.getUser();
+        if(user) await loadInitialData(user.id);
+    }, 
+    handleSaveSchedule, onStartWorkout, onSaveWorkout,
     confirmSaveWorkoutWithIntensity, onSaveCardio, onSetChange, onToggleSetComplete,
     onStopRestimer, onWeekChange, onSaveMeasurement, showToast, showConfirmation, hideConfirmation
   };
@@ -314,4 +334,4 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       {children}
     </AppContext.Provider>
   );
-}; 
+};

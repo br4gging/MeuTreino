@@ -1,10 +1,9 @@
-// ARQUIVO COMPLETO E FINAL: src/components/Reports.tsx
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { WorkoutSession, StrengthWorkoutDetails } from '../types/workout';
-import { BarChart3, TrendingUp, Clock, Target, Award, Activity, AlertCircle } from 'lucide-react';
+import { TrendingUp, Clock, Target, Award, Activity, AlertCircle, Dumbbell, HeartPulse } from 'lucide-react';
 
+// Funções utilitárias mantidas no topo
 const paceToSeconds = (pace: string): number => {
   if (!pace || typeof pace !== 'string') return 0;
   const parts = pace.split(':');
@@ -13,18 +12,18 @@ const paceToSeconds = (pace: string): number => {
 };
 
 const secondsToPace = (seconds: number): string => {
-  if (!seconds || !isFinite(seconds)) return 'N/A';
+  if (!seconds || !isFinite(seconds) || seconds === 0) return 'N/A';
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.round(seconds % 60);
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
 const getPaceRating = (paceInSeconds: number) => {
-    if (!paceInSeconds || paceInSeconds === 0) return { rating: 'N/A', bg: 'bg-gray-100', color: 'text-gray-800' };
-    if (paceInSeconds < 300) return { rating: 'Excelente', bg: 'bg-green-100', color: 'text-green-800' };
-    if (paceInSeconds < 360) return { rating: 'Muito Bom', bg: 'bg-blue-100', color: 'text-blue-800' };
-    if (paceInSeconds < 420) return { rating: 'Bom', bg: 'bg-yellow-100', color: 'text-yellow-800' };
-    return { rating: 'Regular', bg: 'bg-orange-100', color: 'text-orange-800' };
+    if (!paceInSeconds || paceInSeconds === 0) return { rating: 'N/A', color: 'text-text-muted' };
+    if (paceInSeconds < 300) return { rating: 'Excelente', color: 'text-green-400' };
+    if (paceInSeconds < 360) return { rating: 'Muito Bom', color: 'text-blue-400' };
+    if (paceInSeconds < 420) return { rating: 'Bom', color: 'text-yellow-400' };
+    return { rating: 'Regular', color: 'text-orange-400' };
 };
 
 const initialStats = {
@@ -46,13 +45,13 @@ const Reports: React.FC = () => {
         console.error("Erro ao buscar relatórios:", error);
         setSessions([]);
       } else {
-        const sessionData = data || [];
-        setSessions(sessionData as any[]);
+        const sessionData = (data as WorkoutSession[]) || [];
+        setSessions(sessionData);
         if (sessionData.length > 0) {
           const cardioSessions = sessionData.filter(s => s.type === 'cardio' && (s.details as any).pace);
           if (cardioSessions.length > 0) {
-            const bestPaceAllTime = Math.min(...cardioSessions.map(s => paceToSeconds((s.details as any).pace)).filter(Boolean));
-            setAllTimeBestPace(bestPaceAllTime);
+            const bestPaceAllTime = Math.min(...cardioSessions.map(s => paceToSeconds((s.details as any).pace)).filter(p => p > 0));
+            setAllTimeBestPace(bestPaceAllTime > 0 ? bestPaceAllTime : 0);
           }
         }
       }
@@ -63,7 +62,7 @@ const Reports: React.FC = () => {
 
   const calculatedStats = useMemo(() => {
     if (!sessions || sessions.length === 0) return initialStats;
-
+    // Lógica de cálculo de estatísticas (mantida)
     const now = new Date();
     const startDate = new Date();
     if (selectedPeriod === 'week') startDate.setDate(now.getDate() - 7);
@@ -74,12 +73,12 @@ const Reports: React.FC = () => {
     if (filteredSessions.length === 0) return initialStats;
     
     const cardioSessions = filteredSessions.filter(s => s.type === 'cardio' && (s.details as any)?.pace);
-    const runningPacesInSeconds = cardioSessions.map(s => paceToSeconds((s.details as any).pace));
+    const runningPacesInSeconds = cardioSessions.map(s => paceToSeconds((s.details as any).pace)).filter(p => p > 0);
     const runningStats = {
       sessions: cardioSessions.length,
       totalDistance: cardioSessions.reduce((acc, s) => acc + (s.details as any).distance, 0),
-      avgPace: runningPacesInSeconds.reduce((acc, p) => acc + p, 0) / (runningPacesInSeconds.length || 1),
-      bestPace: Math.min(...runningPacesInSeconds.filter(Boolean))
+      avgPace: runningPacesInSeconds.length > 0 ? runningPacesInSeconds.reduce((acc, p) => acc + p, 0) / runningPacesInSeconds.length : 0,
+      bestPace: runningPacesInSeconds.length > 0 ? Math.min(...runningPacesInSeconds) : 0
     };
     
     const strengthSessions = filteredSessions.filter(s => s.type === 'strength');
@@ -98,70 +97,88 @@ const Reports: React.FC = () => {
         if (maxLoad > 0) allLifts[ex.name].push(maxLoad);
       });
     });
-    const topLifts = Object.entries(allLifts).sort((a, b) => b[1].length - a[1].length).slice(0, 3).map(([exercise, weights]) => ({ exercise, weight: Math.max(...weights) }));
+    const topLifts = Object.entries(allLifts)
+      .filter(([_, weights]) => weights.length > 0) // Garantir que só entrem exercícios com cargas
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 3)
+      .map(([exercise, weights]) => ({ exercise, weight: Math.max(...weights) }));
+    
     const strengthStats = {
       totalSessions: strengthSessions.length,
-      avgDuration: strengthSessions.reduce((acc, s) => acc + s.duration, 0) / (strengthSessions.length * 60 || 1),
-      completionRate: (totalCompletion / (strengthSessions.length || 1)) * 100,
+      avgDuration: strengthSessions.length > 0 ? strengthSessions.reduce((acc, s) => acc + s.duration, 0) / (strengthSessions.length * 60) : 0,
+      completionRate: strengthSessions.length > 0 ? (totalCompletion / strengthSessions.length) * 100 : 0,
       topLifts
     };
     
     return { running: runningStats, strength: strengthStats };
   }, [sessions, selectedPeriod]);
+  
+  const isPersonalBest = useMemo(() => {
+    return calculatedStats.running.bestPace > 0 && allTimeBestPace > 0 && calculatedStats.running.bestPace <= allTimeBestPace;
+  }, [calculatedStats.running.bestPace, allTimeBestPace]);
 
   const paceRating = getPaceRating(calculatedStats.running.avgPace);
-  const isPersonalBest = calculatedStats.running.bestPace > 0 && calculatedStats.running.bestPace === allTimeBestPace;
 
-  if (loading) {
-    return <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-teal-800 p-4 flex items-center justify-center"><p className="text-white text-xl">Calculando relatórios...</p></div>;
-  }
+  if (loading) { return <div className="min-h-screen p-4 flex items-center justify-center"><p className="text-text-primary text-xl">Calculando relatórios...</p></div>; }
   
   const hasData = sessions.length > 0;
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-teal-800 p-4 pb-20">
+    <div className="min-h-screen p-4 pb-24 animate-fade-in-up">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div><h1 className="text-3xl font-bold mb-2">Relatórios de Performance</h1><p className="text-blue-200">Análise detalhada do seu progresso</p></div>
-            <div className="flex gap-2">
-              {(['week', 'month', 'quarter'] as const).map((period) => (<button key={period} onClick={() => setSelectedPeriod(period)} className={`px-4 py-2 rounded-xl font-medium transition-all ${selectedPeriod === period ? 'bg-white text-blue-900' : 'bg-white/20 text-white hover:bg-white/30'}`}>{period === 'week' ? 'Semana' : period === 'month' ? 'Mês' : 'Trimestre'}</button>))}
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className='flex-1'>
+                <h1 className="text-3xl font-bold text-text-primary mb-1">Relatórios</h1>
+                <p className="text-text-muted">Sua performance no período selecionado.</p>
             </div>
-          </div>
+            <div className="flex gap-2 bg-bg-secondary p-1 rounded-xl">
+              {(['week', 'month', 'quarter'] as const).map((period) => (<button key={period} onClick={() => setSelectedPeriod(period)} className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${selectedPeriod === period ? 'bg-primary text-white' : 'text-text-muted hover:bg-white/5'}`}>{period === 'week' ? 'Semana' : period === 'month' ? 'Mês' : 'Trimestre'}</button>))}
+            </div>
         </div>
 
         {!hasData ? (
-          <div className="bg-white rounded-2xl p-8 shadow-xl text-center col-span-full">
-            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle className="w-8 h-8 text-yellow-600" /></div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">Dados Insuficientes</h3>
-            <p className="text-gray-600">Você precisa registrar alguns treinos na aba "Histórico" antes de gerarmos seus relatórios.</p>
+          <div className="card text-center col-span-full mt-8">
+            <AlertCircle className="w-12 h-12 text-warning mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-text-primary mb-2">Dados Insuficientes</h3>
+            <p className="text-text-muted">Registre alguns treinos para que possamos gerar seus relatórios.</p>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-2xl p-6 shadow-xl"><div className="flex items-center gap-3 mb-3"><Clock className="w-5 h-5 text-orange-600" /><h3 className="font-semibold text-gray-800">Pace Médio</h3></div><p className="text-3xl font-bold text-gray-900 mb-2">{secondsToPace(calculatedStats.running.avgPace)} <span className="text-lg">min/km</span></p><div className={`inline-block px-2 py-1 rounded-lg text-xs font-medium ${paceRating.bg} ${paceRating.color}`}>{paceRating.rating}</div></div>
-              <div className="bg-white rounded-2xl p-6 shadow-xl"><div className="flex items-center gap-3 mb-3"><Target className="w-5 h-5 text-blue-600" /><h3 className="font-semibold text-gray-800">Distância Total</h3></div><p className="text-3xl font-bold text-gray-900 mb-2">{calculatedStats.running.totalDistance.toFixed(1)} <span className="text-lg">km</span></p><p className="text-sm text-gray-600">{calculatedStats.running.sessions} sessões de corrida</p></div>
-              <div className="bg-white rounded-2xl p-6 shadow-xl"><div className="flex items-center gap-3 mb-3"><TrendingUp className="w-5 h-5 text-green-600" /><h3 className="font-semibold text-gray-800">Treinos Força</h3></div><p className="text-3xl font-bold text-gray-900 mb-2">{calculatedStats.strength.totalSessions} <span className="text-lg">sessões</span></p><p className="text-sm text-gray-600">{calculatedStats.strength.completionRate.toFixed(0)}% de conclusão</p></div>
-              <div className="bg-white rounded-2xl p-6 shadow-xl"><div className="flex items-center gap-3 mb-3"><Award className="w-5 h-5 text-purple-600" /><h3 className="font-semibold text-gray-800">Melhor Pace</h3></div><p className="text-3xl font-bold text-gray-900 mb-2">{secondsToPace(calculatedStats.running.bestPace)} <span className="text-lg">min/km</span></p>{isPersonalBest && <p className="text-sm text-purple-600 font-medium">Recorde pessoal!</p>}</div>
+                <div className="card text-center"><h3 className="font-semibold text-text-muted mb-2">Pace Médio</h3><p className="metric-value">{secondsToPace(calculatedStats.running.avgPace)}</p><p className={`text-sm font-semibold mt-1 ${paceRating.color}`}>{paceRating.rating}</p></div>
+                <div className="card text-center"><h3 className="font-semibold text-text-muted mb-2">Distância Total</h3><p className="metric-value">{calculatedStats.running.totalDistance.toFixed(1)} <span className="text-2xl text-text-secondary">km</span></p><p className="text-sm text-text-muted mt-1">{calculatedStats.running.sessions} {calculatedStats.running.sessions === 1 ? 'corrida' : 'corridas'}</p></div>
+                <div className="card text-center"><h3 className="font-semibold text-text-muted mb-2">Treinos Musculação</h3><p className="metric-value">{calculatedStats.strength.totalSessions}</p><p className="text-sm text-text-muted mt-1">{calculatedStats.strength.completionRate.toFixed(0)}% de conclusão</p></div>
+                <div className="card text-center"><h3 className="font-semibold text-text-muted mb-2">Melhor Pace</h3><p className="metric-value">{secondsToPace(calculatedStats.running.bestPace)}</p>{isPersonalBest && <p className="text-sm text-accent font-medium mt-1">Recorde pessoal!</p>}</div>
             </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center gap-3 mb-6"><Activity className="w-5 h-5 text-orange-600" /> <h3 className="text-xl font-bold text-gray-800">Performance na Corrida</h3></div>
-                <div className="space-y-4"><div className="flex justify-between items-center p-4 bg-orange-50 rounded-xl"><span className="font-medium text-gray-700">Sessões de Corrida</span><span className="text-lg font-bold text-orange-600">{calculatedStats.running.sessions}</span></div><div className="flex justify-between items-center p-4 bg-blue-50 rounded-xl"><span className="font-medium text-gray-700">Distância Total</span><span className="text-lg font-bold text-blue-600">{calculatedStats.running.totalDistance.toFixed(1)} km</span></div></div>
-                <div className="mt-6 p-4 bg-gray-50 rounded-xl"><h4 className="font-semibold text-gray-800 mb-2">Análise</h4><p className="text-sm text-gray-600">{calculatedStats.running.avgPace < 360 ? 'Seu pace está excelente! Continue mantendo essa regularidade para melhorar ainda mais seu tempo e explorar distâncias maiores.' : 'Mantenha a consistência nos treinos. Foque na respiração e cadência para melhorar o pace. A cada treino você constrói mais resistência.'}</p></div>
+              <div className="card">
+                <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 flex items-center justify-center rounded-lg bg-secondary-gradient text-white"><HeartPulse size={20}/></div><h3 className="text-xl font-bold text-text-primary">Performance na Corrida</h3></div>
+                 <div className="space-y-4">
+                    <div className="p-4 bg-bg-secondary rounded-xl"><p className="font-semibold text-text-primary mb-2">Análise</p><p className="text-sm text-text-muted">{calculatedStats.running.avgPace < 360 ? 'Seu pace está excelente! Continue mantendo essa regularidade para melhorar ainda mais seu tempo e explorar distâncias maiores.' : 'Mantenha a consistência nos treinos. Foque na respiração e cadência para melhorar o pace. A cada treino você constrói mais resistência.'}</p></div>
+                 </div>
               </div>
-              <div className="bg-white rounded-2xl p-6 shadow-xl">
-                <div className="flex items-center gap-3 mb-6"><BarChart3 className="w-5 h-5 text-blue-600" /><h3 className="text-xl font-bold text-gray-800">Progresso na Força</h3></div>
-                <div className="space-y-4"><div className="flex justify-between items-center p-4 bg-green-50 rounded-xl"><span className="font-medium text-gray-700">Taxa de Conclusão</span><span className="text-lg font-bold text-green-600">{calculatedStats.strength.completionRate.toFixed(0)}%</span></div><div className="flex justify-between items-center p-4 bg-purple-50 rounded-xl"><span className="font-medium text-gray-700">Duração Média</span><span className="text-lg font-bold text-purple-600">{calculatedStats.strength.avgDuration.toFixed(0)} min</span></div></div>
-                <div className="mt-6"><h4 className="font-semibold text-gray-800 mb-3">Maiores Cargas (Top 3 Exercícios)</h4><div className="space-y-3">{calculatedStats.strength.topLifts.map((lift) => (<div key={lift.exercise} className="flex justify-between items-center text-sm"><span className="font-medium text-gray-700">{lift.exercise}</span><span className="font-bold text-green-600">{lift.weight}kg</span></div>))}{calculatedStats.strength.topLifts.length === 0 && <p className="text-sm text-gray-500">Nenhuma carga registrada neste período.</p>}</div></div>
-                <div className="mt-6 p-4 bg-gray-50 rounded-xl"><h4 className="font-semibold text-gray-800 mb-2">Análise</h4><p className="text-sm text-gray-600">{calculatedStats.strength.completionRate > 90 ? 'Sua dedicação é notável, com uma taxa de conclusão altíssima. Continue com o foco e considere aumentar as cargas progressivamente.' : 'Ótimo trabalho em manter a rotina. Tente focar em completar todas as séries para maximizar os ganhos de força e volume.'}</p></div>
+
+              <div className="card">
+                <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 flex items-center justify-center rounded-lg bg-primary-gradient text-white"><Dumbbell size={20}/></div><h3 className="text-xl font-bold text-text-primary">Progresso na Musculação</h3></div>
+                <div className="space-y-4">
+                    <h4 className="font-semibold text-text-primary text-center">Maiores Cargas do Período</h4>
+                     {calculatedStats.strength.topLifts.length > 0 ? calculatedStats.strength.topLifts.map((lift) => (
+                        <div key={lift.exercise} className="flex justify-between items-center bg-bg-secondary p-3 rounded-lg">
+                            <span className="text-sm font-medium text-text-secondary truncate pr-2">{lift.exercise}</span>
+                            <span className="font-bold text-lg text-primary">{lift.weight}kg</span>
+                        </div>
+                    )) : <p className="text-sm text-text-muted text-center py-4">Nenhuma carga registrada.</p>}
+                     <div className="p-4 bg-bg-secondary rounded-xl"><p className="font-semibold text-text-primary mb-2">Análise</p><p className="text-sm text-text-muted">{calculatedStats.strength.completionRate > 90 ? 'Sua dedicação é notável, com uma taxa de conclusão altíssima. Continue com o foco e considere aumentar as cargas progressivamente.' : 'Ótimo trabalho em manter a rotina. Tente focar em completar todas as séries para maximizar os ganhos de força e volume.'}</p></div>
+                </div>
               </div>
             </div>
-            <div className="bg-white rounded-2xl p-6 shadow-xl">
-              <div className="flex items-center gap-3 mb-6"><div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><BarChart3 className="w-5 h-5 text-indigo-600" /></div><h3 className="text-xl font-bold text-gray-800">Insights de Performance</h3></div>
+
+             <div className="card">
+              <div className="flex items-center justify-center gap-3 mb-6"><Award className="w-5 h-5 text-accent" /><h3 className="text-xl font-bold text-text-primary">Insights de Performance</h3></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4"><h4 className="font-semibold text-gray-800">💪 Pontos Fortes</h4><ul className="space-y-2"><li className="flex items-center gap-2 text-sm text-gray-700"><div className="w-2 h-2 bg-green-500 rounded-full"></div>Consistência nos treinos de força</li><li className="flex items-center gap-2 text-sm text-gray-700"><div className="w-2 h-2 bg-green-500 rounded-full"></div>Melhoria gradual no pace da corrida</li><li className="flex items-center gap-2 text-sm text-gray-700"><div className="w-2 h-2 bg-green-500 rounded-full"></div>Alta taxa de conclusão dos exercícios</li></ul></div>
-                <div className="space-y-4"><h4 className="font-semibold text-gray-800">🎯 Áreas de Melhoria</h4><ul className="space-y-2"><li className="flex items-center gap-2 text-sm text-gray-700"><div className="w-2 h-2 bg-orange-500 rounded-full"></div>Trabalhar variação de velocidade na corrida</li><li className="flex items-center gap-2 text-sm text-gray-700"><div className="w-2 h-2 bg-orange-500 rounded-full"></div>Focar na recuperação entre séries</li><li className="flex items-center gap-2 text-sm text-gray-700"><div className="w-2 h-2 bg-orange-500 rounded-full"></div>Aumentar progressivamente a carga</li></ul></div>
+                <div className="space-y-3"><h4 className="font-semibold text-text-primary">💪 Pontos Fortes</h4><ul className="space-y-2 list-inside">{['Consistência nos treinos', 'Melhoria gradual no pace', 'Alta taxa de conclusão'].map(item => <li key={item} className="flex items-center gap-2 text-sm text-text-secondary"><div className="w-2 h-2 bg-success rounded-full"></div>{item}</li>)}</ul></div>
+                <div className="space-y-3"><h4 className="font-semibold text-text-primary">🎯 Áreas de Melhoria</h4><ul className="space-y-2 list-inside">{['Trabalhar variação de velocidade', 'Focar na recuperação entre séries', 'Aumentar progressivamente a carga'].map(item => <li key={item} className="flex items-center gap-2 text-sm text-text-secondary"><div className="w-2 h-2 bg-warning rounded-full"></div>{item}</li>)}</ul></div>
               </div>
             </div>
           </>

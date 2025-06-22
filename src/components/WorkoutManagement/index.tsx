@@ -6,6 +6,7 @@ import WorkoutForm from './WorkoutForm';
 import { UserWorkout, DaySchedule, Exercise, SetTemplate } from '../../types/workout';
 import { createWorkout, updateWorkout, deleteWorkout } from '../../lib/workoutApi';
 import { supabase } from '../../supabaseClient';
+import { Calendar } from 'lucide-react';
 
 const WorkoutManagement: React.FC = () => {
   const {
@@ -18,7 +19,6 @@ const WorkoutManagement: React.FC = () => {
   } = useAppContext();
 
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
-  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [schedule, setSchedule] = useState<DaySchedule[]>([]);
   const [isCreatingWorkout, setIsCreatingWorkout] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<UserWorkout | null>(null);
@@ -52,20 +52,17 @@ const WorkoutManagement: React.FC = () => {
       return s;
     }));
   };
-  const handleEditClick = () => {
-    setIsEditingSchedule(true);
-    setIsScheduleOpen(true);
-  };
+  
+  const handleEditClick = () => setIsEditingSchedule(true);
+
   const handleCancelClick = () => {
     if (initialSchedule) setSchedule(initialSchedule);
     setIsEditingSchedule(false);
-    setIsScheduleOpen(false);
   };
   const handleSaveClick = async () => {
     const success = await onSaveSchedule(schedule);
     if (success) {
       setIsEditingSchedule(false);
-      setIsScheduleOpen(false);
     }
   };
 
@@ -80,7 +77,6 @@ const WorkoutManagement: React.FC = () => {
     setEditingWorkout(workout);
     setIsCreatingWorkout(true);
     setNewWorkoutName(workout.name);
-    // Migrar exercícios para edição
     const migratedExercises = (workout.exercises || []).map((ex: any) => {
       const baseId = ex.id && typeof ex.id === 'string' ? ex.id : crypto.randomUUID();
       const setsWithIds = (ex.sets || []).map((s: any) => ({ ...s, id: s.id || crypto.randomUUID(), restTime: String(s.restTime || '90'), value: String(s.value || '2') }));
@@ -159,19 +155,23 @@ const WorkoutManagement: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-teal-800 p-4 pb-20">
+    <div className="min-h-screen p-4 pb-24 animate-fade-in-up">
       <div className="max-w-4xl mx-auto space-y-8">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 text-white"><h1 className="text-3xl font-bold mb-2">Gerir Treinos</h1><p className="text-blue-200">Crie os seus treinos e organize a sua rotina semanal.</p></div>
+        <div className="text-center">
+            <h1 className="text-3xl font-bold text-text-primary mb-2">Gerenciar Treinos</h1>
+            <p className="text-text-muted">Crie seus treinos e organize sua rotina semanal.</p>
+        </div>
+
         <WeeklySchedulePanel
           schedule={schedule}
           userWorkouts={userWorkouts}
           isEditing={isEditingSchedule}
-          isScheduleOpen={isScheduleOpen}
           onEdit={handleEditClick}
           onCancel={handleCancelClick}
           onSave={handleSaveClick}
           onScheduleChange={handleScheduleChange}
         />
+
         {!isCreatingWorkout ? (
           <UserWorkoutsList
             userWorkouts={userWorkouts}
@@ -200,4 +200,4 @@ const WorkoutManagement: React.FC = () => {
   );
 };
 
-export default WorkoutManagement; 
+export default WorkoutManagement;

@@ -15,26 +15,35 @@ interface WeeklyProgressPanelProps {
 const WeeklyProgressPanel: React.FC<WeeklyProgressPanelProps> = ({ currentWeek, onWeekChange, weekProgression }) => {
   const getCurrentWeekInfo = () => weekProgression.find(w => w.week === currentWeek) || weekProgression[0];
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-md border">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3"><span className="w-5 h-5 text-amber-500">🏁</span>
-          <h3 className="font-semibold text-gray-700">Progressão Semanal</h3>
+    <div className="card bg-gradient-to-br from-primary/20 to-secondary/20 border-primary/30">
+        <div className="flex items-start justify-between">
+            <div>
+                <h3 className="text-xl font-bold text-text-primary">Progressão Semanal</h3>
+                <p className="text-text-muted text-sm mt-1">{getCurrentWeekInfo().description}</p>
+            </div>
+            <div className="text-right flex-shrink-0 ml-4">
+                 <span className="text-lg font-semibold text-text-primary">Semana {currentWeek}</span>
+                 <p className="text-sm font-medium text-accent">{getCurrentWeekInfo().rpeTarget}</p>
+            </div>
         </div>
-        <div className="text-right">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-md font-semibold text-gray-800">Semana {currentWeek}</span>
-          </div>
-          <p className="text-xs text-gray-500">{getCurrentWeekInfo().rpeTarget}</p>
-        </div>
-      </div>
-      <p className="text-gray-600 text-sm mt-2">{getCurrentWeekInfo().description}</p>
-      <div className="flex gap-2 mt-3">
-        {weekProgression.map((week) => (
-          <button key={week.week} onClick={() => onWeekChange(week.week)} className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${currentWeek === week.week ? 'bg-blue-600 text-white shadow' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>S{week.week}</button>
-        ))}
+
+        <div className="flex justify-start gap-3 mt-4">
+            {weekProgression.map((week) => (
+            <button
+                key={week.week}
+                onClick={() => onWeekChange(week.week)}
+                className={`w-12 h-12 rounded-full font-semibold text-white flex items-center justify-center transition-all duration-300
+                ${currentWeek === week.week
+                    ? 'bg-primary-gradient shadow-lg scale-110'
+                    : 'bg-white/10 hover:bg-white/20'
+                }`}
+            >
+                S{week.week}
+            </button>
+            ))}
       </div>
     </div>
   );
 };
 
-export default WeeklyProgressPanel; 
+export default WeeklyProgressPanel;

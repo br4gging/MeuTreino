@@ -1,22 +1,25 @@
-// ARQUIVO: src/types/workout.ts (COMPLETO E FINAL)
+// ARQUIVO: src/types/workout.ts
 
 export interface DetailedSet {
   id: string;
   type: 'warmup' | 'work';
   setNumber: number;
   targetReps: string;
+  targetValue: string; // <-- ADICIONADO AQUI
   achievedReps: string;
   achievedLoad: string;
   restTime: number;
   completed: boolean;
+  lastWeight?: number; 
 }
 
 export interface SetTemplate {
   id: string;
   type: 'warmup' | 'work';
-  value: string;
+  value: string; // Este campo guarda o RIR ou a % de Carga no molde
   reps: string;
   restTime: string; 
+  lastWeight?: number;
 }
 
 export interface Exercise {
@@ -24,7 +27,6 @@ export interface Exercise {
   name: string;
   sets: SetTemplate[];
   notes?: string;
-  lastWeight?: number;
   completed: number;
   total: number;
   rpe: string;
@@ -68,6 +70,7 @@ export interface WorkoutSession {
 
 export interface DaySchedule {
   id?: string;
+  user_id?: string;
   day: number;
   name: string;
   workoutType: 'strength' | 'cardio' | 'rest';

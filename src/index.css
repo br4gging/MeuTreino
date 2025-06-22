@@ -1,3 +1,71 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg-primary text-text-primary min-h-screen;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  /* Main Card Style */
+  .card {
+    @apply bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl p-6 shadow-lg;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .card:hover {
+    @apply border-white/30;
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+  
+  /* Buttons */
+  .btn {
+    @apply py-3 px-6 rounded-xl font-semibold cursor-pointer transition-all duration-300 ease-in-out;
+  }
+  .btn-primary {
+    @apply btn bg-primary-gradient text-white shadow-lg;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+  }
+  .btn-secondary {
+    @apply btn bg-white/10 border border-white/20 backdrop-blur;
+  }
+  .btn-secondary:hover {
+    @apply bg-white/20 border-white/30;
+  }
+
+  /* Metric Value from Performance Card */
+  .metric-value {
+    @apply text-4xl font-extrabold bg-accent-gradient bg-clip-text text-transparent;
+  }
+
+  /* Overlay for background texture */
+  .bg-overlay {
+    @apply bg-overlay-texture;
+    background-size: 20px 20px;
+  }
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}

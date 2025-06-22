@@ -30,11 +30,11 @@ const AppContent: React.FC = () => {
     }
   };
   return (
-    <>
+    <div className="bg-overlay">
       {renderActiveComponent()}
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
       <IntensityModal isOpen={showIntensityModal} onClose={() => setShowIntensityModal(false)} onSave={confirmSaveWorkoutWithIntensity} />
-    </>
+    </div>
   );
 };
 
@@ -62,15 +62,15 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-teal-800 flex items-center justify-center" role="status" aria-busy="true" aria-live="polite">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white" />
+      <div className="min-h-screen bg-bg-primary flex items-center justify-center" role="status" aria-busy="true" aria-live="polite">
+        <div className="w-16 h-16 border-4 border-accent border-solid rounded-full border-t-transparent animate-spin" />
         <span className="sr-only">Carregando...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" role="main">
+    <div className="min-h-screen bg-bg-primary" role="main">
       <AppProvider>
         {!session ? <Auth /> : <AppContent key={session.user.id} />}
       </AppProvider>

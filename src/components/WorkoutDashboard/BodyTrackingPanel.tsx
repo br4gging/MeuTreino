@@ -1,18 +1,25 @@
 import React from 'react';
+import { Scale } from 'lucide-react';
 
 interface BodyTrackingPanelProps {
   onOpenMeasurementModal: () => void;
 }
 
 const BodyTrackingPanel: React.FC<BodyTrackingPanelProps> = ({ onOpenMeasurementModal }) => (
-  <div className="bg-white rounded-2xl p-4 shadow-md border">
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-3"><span className="w-5 h-5 text-indigo-500">⚖️</span>
-        <h3 className="font-semibold text-gray-700">Acompanhamento Corporal</h3>
+  <div className="card flex items-center justify-between">
+    <div className="flex items-center gap-4">
+      <div className="w-12 h-12 rounded-lg bg-accent-gradient flex items-center justify-center text-bg-primary">
+          <Scale size={24} />
       </div>
-      <button onClick={onOpenMeasurementModal} className="px-4 py-2 bg-indigo-500 text-white rounded-lg font-semibold hover:bg-indigo-600 transition-colors text-sm">Registar Medidas</button>
+      <div>
+        <h3 className="font-bold text-lg text-text-primary">Acompanhamento Corporal</h3>
+        <p className="text-sm text-text-muted">Registre seu peso e medidas.</p>
+      </div>
     </div>
+    <button onClick={onOpenMeasurementModal} className="btn-secondary flex-shrink-0">
+        Registrar
+    </button>
   </div>
 );
 
-export default BodyTrackingPanel; 
+export default BodyTrackingPanel;
