@@ -231,7 +231,7 @@ const WorkoutHistory: React.FC = () => {
                   className="w-full pl-10 pr-4 py-3 bg-black/20 border-2 border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-primary focus:bg-primary/10 transition-all"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button onClick={() => setFilterType('all')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'all' ? 'bg-primary text-white border-primary' : ''}`}>Todos</button>
                 <button onClick={() => setFilterType('strength')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'strength' ? 'bg-primary text-white border-primary' : ''}`}>Força</button>
                 <button onClick={() => setFilterType('cardio')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'cardio' ? 'bg-secondary text-white border-secondary' : ''}`}>Cardio</button>

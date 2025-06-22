@@ -245,14 +245,14 @@ const WorkoutDashboard: React.FC = () => {
                                 const label = isWarmup ? `Aquecimento ${set.setNumber}` : `Trabalho ${set.setNumber}`;
                                 return (
                                     <div key={set.id} className={`p-2 rounded-lg ${set.completed ? 'bg-accent/10' : 'bg-black/20'}`}>
-                                      <div className="grid grid-cols-10 gap-x-2 items-center">
+                                      <div className="grid grid-cols-12 gap-2 items-center">
                                         <div className="col-span-12 sm:col-span-4 text-left mb-2 sm:mb-0">
                                           <p className={`font-semibold text-sm ${isWarmup ? 'text-yellow-400' : 'text-text-secondary'}`}>{label}</p>
                                           <p className="text-xs text-text-muted">{isWarmup ? `${set.targetValue}% Carga` : `${set.targetValue} RIR`}</p>
                                         </div>
-                                        <div className="col-span-5 sm:col-span-2"><input type="number" placeholder={set.lastWeight ? `${set.lastWeight}` : 'kg'} value={set.achievedLoad} onChange={e => onSetChange(ex.id, set.id, 'achievedLoad', e.target.value)} className="w-full p-2 bg-white/5 border border-white/10 rounded-md text-center text-white"/></div>
-                                        <div className="col-span-5 sm:col-span-2"><input type="number" placeholder={set.targetReps} value={set.achievedReps} onChange={e => onSetChange(ex.id, set.id, 'achievedReps', e.target.value)} className="w-full p-2 bg-white/5 border border-white/10 rounded-md text-center text-white"/></div>
-                                        <div className="col-span-10 sm:col-span-2 flex items-center gap-1">
+                                        <div className="col-span-6 md:col-span-3"><input type="number" placeholder={set.lastWeight ? `${set.lastWeight}` : 'kg'} value={set.achievedLoad} onChange={e => onSetChange(ex.id, set.id, 'achievedLoad', e.target.value)} className="w-full p-2 bg-white/5 border border-white/10 rounded-md text-center text-white"/></div>
+                                        <div className="col-span-6 md:col-span-2"><input type="number" placeholder={set.targetReps} value={set.achievedReps} onChange={e => onSetChange(ex.id, set.id, 'achievedReps', e.target.value)} className="w-full p-2 bg-white/5 border border-white/10 rounded-md text-center text-white"/></div>
+                                        <div className="col-span-12 md:col-span-3 flex items-center gap-1">
                                             <input type="number" value={set.restTime} onChange={e => onSetChange(ex.id, set.id, 'restTime', e.target.value)} className="w-full p-2 bg-white/5 border border-white/10 rounded-md text-center text-white"/>
                                             <button onClick={() => onToggleSetComplete(ex.id, set.id)} className={`p-2 rounded-full transition-colors ${set.completed ? 'bg-accent text-bg-primary' : 'bg-white/10 hover:bg-accent/80'}`}><Check size={16} /></button>
                                         </div>
