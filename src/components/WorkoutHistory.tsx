@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+// ARQUIVO: src/components/WorkoutHistory.tsx
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { WorkoutSession, BodyMeasurement, StrengthWorkoutDetails, DetailedWorkout } from '../types/workout';
-import { Calendar, Clock, ChevronDown, Dumbbell, HeartPulse, Scale, Activity, Search } from 'lucide-react';
+import { Calendar, Clock, ChevronDown, Dumbbell, HeartPulse, Scale, Activity, Search, Edit, Trash2 } from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
+import { MeasurementModal } from './MeasurementModal';
 
-// Card para um registro de Treino de Força ou Cardio (NOVO LAYOUT)
+// Card para um registro de Treino de Força ou Cardio (sem alterações)
 const WorkoutSessionCard: React.FC<{ entry: WorkoutSession }> = ({ entry }) => {
   const [isOpen, setIsOpen] = useState(false);
   const isStrength = entry.type === 'strength';
@@ -25,11 +29,10 @@ const WorkoutSessionCard: React.FC<{ entry: WorkoutSession }> = ({ entry }) => {
 
   const ActivityIcon = isStrength ? Dumbbell : HeartPulse;
   const iconGradient = isStrength ? 'bg-primary-gradient' : 'bg-secondary-gradient';
-  const completionPercentage = isStrength ? Math.round((details.exercisesCompleted / details.totalExercises) * 100) : 0;
+  const completionPercentage = isStrength && details.totalExercises > 0 ? Math.round((details.exercisesCompleted / details.totalExercises) * 100) : 0;
 
   return (
     <div className="card">
-      {/* Header do Card */}
       <div className="flex items-center gap-4">
         <div className={`w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center text-white ${iconGradient}`}>
           <ActivityIcon size={24} />
@@ -44,7 +47,6 @@ const WorkoutSessionCard: React.FC<{ entry: WorkoutSession }> = ({ entry }) => {
         </div>
       </div>
       
-      {/* Corpo do Card */}
       <div className="mt-4">
         {isStrength ? (
             <div>
@@ -105,13 +107,17 @@ const WorkoutSessionCard: React.FC<{ entry: WorkoutSession }> = ({ entry }) => {
   );
 };
 
-// Card para um registro de Medição Corporal (Layout Otimizado)
-const MeasurementHistoryCard: React.FC<{ entry: BodyMeasurement }> = ({ entry }) => {
+// Card para um registro de Medição Corporal (COM ALTERAÇÕES)
+const MeasurementHistoryCard: React.FC<{ 
+  entry: BodyMeasurement;
+  onEdit: (entry: BodyMeasurement) => void;
+  onDelete: (id: string) => void;
+}> = ({ entry, onEdit, onDelete }) => {
   const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
   
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start justify-between mb-4">
         <div className="flex items-center gap-4">
            <div className="w-12 h-12 rounded-lg flex-shrink-0 flex items-center justify-center text-white bg-accent-gradient">
             <Scale size={24} />
@@ -121,8 +127,12 @@ const MeasurementHistoryCard: React.FC<{ entry: BodyMeasurement }> = ({ entry })
             <div className="flex items-center gap-1.5 text-xs text-text-muted mt-1"><Calendar size={14} /><span>{formatDate(entry.measured_at)}</span></div>
           </div>
         </div>
-        <div className="text-sm bg-bg-secondary text-accent font-semibold px-3 py-1 rounded-full">{entry.source}</div>
+        <div className="flex items-center gap-1">
+            <button onClick={() => onEdit(entry)} className="p-2 text-text-muted hover:text-primary transition-colors"><Edit size={16}/></button>
+            <button onClick={() => onDelete(entry.id!)} className="p-2 text-text-muted hover:text-error transition-colors"><Trash2 size={16}/></button>
+        </div>
       </div>
+      <div className="text-sm bg-bg-secondary text-accent font-semibold px-3 py-1 rounded-full w-fit mb-4">{entry.source}</div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
         {entry.weight_kg && <div className="bg-bg-secondary p-3 rounded-lg"><p className="text-sm text-text-muted">Peso</p><p className="font-bold text-lg text-text-primary">{entry.weight_kg} kg</p></div>}
         {entry.body_fat_percentage && <div className="bg-bg-secondary p-3 rounded-lg"><p className="text-sm text-text-muted">% Gordura</p><p className="font-bold text-lg text-text-primary">{entry.body_fat_percentage} %</p></div>}
@@ -134,16 +144,18 @@ const MeasurementHistoryCard: React.FC<{ entry: BodyMeasurement }> = ({ entry })
   );
 };
 
-// Componente principal (sem alterações na lógica, apenas usa os cards novos)
+
+// Componente principal com alterações
 const WorkoutHistory: React.FC = () => {
+  const { onUpdateMeasurement, onDeleteMeasurement } = useAppContext();
   const [loading, setLoading] = useState(true);
+  const [needsRefresh, setNeedsRefresh] = useState(true); // Controla o recarregamento
   const [historyEntries, setHistoryEntries] = useState<(WorkoutSession | BodyMeasurement)[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'strength' | 'cardio' | 'measurement'>('all');
+  const [editingMeasurement, setEditingMeasurement] = useState<BodyMeasurement | null>(null);
 
-  useEffect(() => {
-    // A lógica de busca de dados permanece a mesma
-    const getHistory = async () => {
+  const getHistory = useCallback(async () => {
       setLoading(true);
       const [sessionsResponse, measurementsResponse] = await Promise.all([
         supabase.from('workout_sessions').select('*'),
@@ -157,12 +169,31 @@ const WorkoutHistory: React.FC = () => {
       combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setHistoryEntries(combined as any[]);
       setLoading(false);
-    };
-    getHistory();
+      setNeedsRefresh(false);
   }, []);
 
+  useEffect(() => {
+    if (needsRefresh) {
+      getHistory();
+    }
+  }, [needsRefresh, getHistory]);
+
+  const handleEdit = (measurement: BodyMeasurement) => {
+    setEditingMeasurement(measurement);
+  };
+
+  const handleDelete = async (measurementId: string) => {
+    await onDeleteMeasurement(measurementId);
+    setNeedsRefresh(true);
+  };
+  
+  const handleUpdate = async (measurement: BodyMeasurement) => {
+      await onUpdateMeasurement(measurement);
+      setEditingMeasurement(null);
+      setNeedsRefresh(true);
+  };
+
   const filteredHistory = historyEntries.filter(entry => {
-    // A lógica de filtro permanece a mesma
     const entryType = (entry as any).entryType;
     let nameToSearch = '';
     if (entryType === 'session') nameToSearch = (entry as WorkoutSession).name;
@@ -180,52 +211,66 @@ const WorkoutHistory: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen p-4 pb-24 animate-fade-in-up">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="text-center">
-            <h1 className="text-3xl font-bold text-text-primary mb-2">Histórico de Atividades</h1>
-            <p className="text-text-muted">Acompanhe seu progresso e performance.</p>
-        </div>
-        
-        <div className="card">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted w-5 h-5" />
-              <input 
-                type="text" 
-                placeholder="Buscar por nome..." 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-                className="w-full pl-10 pr-4 py-3 bg-black/20 border-2 border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-primary focus:bg-primary/10 transition-all"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => setFilterType('all')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'all' ? 'bg-primary text-white border-primary' : ''}`}>Todos</button>
-              <button onClick={() => setFilterType('strength')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'strength' ? 'bg-primary text-white border-primary' : ''}`}>Força</button>
-              <button onClick={() => setFilterType('cardio')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'cardio' ? 'bg-secondary text-white border-secondary' : ''}`}>Cardio</button>
-              <button onClick={() => setFilterType('measurement')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'measurement' ? 'bg-accent text-bg-primary border-accent' : ''}`}>Medidas</button>
+    <>
+      <div className="min-h-screen p-4 pb-24 animate-fade-in-up">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="text-center">
+              <h1 className="text-3xl font-bold text-text-primary mb-2">Histórico de Atividades</h1>
+              <p className="text-text-muted">Acompanhe seu progresso e performance.</p>
+          </div>
+          
+          <div className="card">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted w-5 h-5" />
+                <input 
+                  type="text" 
+                  placeholder="Buscar por nome..." 
+                  value={searchTerm} 
+                  onChange={(e) => setSearchTerm(e.target.value)} 
+                  className="w-full pl-10 pr-4 py-3 bg-black/20 border-2 border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-primary focus:bg-primary/10 transition-all"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setFilterType('all')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'all' ? 'bg-primary text-white border-primary' : ''}`}>Todos</button>
+                <button onClick={() => setFilterType('strength')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'strength' ? 'bg-primary text-white border-primary' : ''}`}>Força</button>
+                <button onClick={() => setFilterType('cardio')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'cardio' ? 'bg-secondary text-white border-secondary' : ''}`}>Cardio</button>
+                <button onClick={() => setFilterType('measurement')} className={`btn-secondary flex-1 md:flex-none ${filterType === 'measurement' ? 'bg-accent text-bg-primary border-accent' : ''}`}>Medidas</button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          {filteredHistory.map((entry) => {
-            if ((entry as any).entryType === 'session') {
-              return <WorkoutSessionCard key={(entry as WorkoutSession).id} entry={entry as WorkoutSession} />;
-            } else {
-              return <MeasurementHistoryCard key={(entry as BodyMeasurement).id} entry={entry as BodyMeasurement} />;
-            }
-          })}
-          {filteredHistory.length === 0 && !loading && (
-            <div className="card text-center">
-                <Search className="w-12 h-12 text-text-muted mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-text-primary mb-2">Nenhum registro encontrado</h3>
-                <p className="text-text-muted">Tente ajustar seus filtros ou registre uma nova atividade!</p>
-            </div>
-          )}
+          <div className="space-y-4">
+            {filteredHistory.map((entry) => {
+              if ((entry as any).entryType === 'session') {
+                return <WorkoutSessionCard key={(entry as WorkoutSession).id} entry={entry as WorkoutSession} />;
+              } else {
+                return <MeasurementHistoryCard 
+                          key={(entry as BodyMeasurement).id} 
+                          entry={entry as BodyMeasurement} 
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                       />;
+              }
+            })}
+            {filteredHistory.length === 0 && !loading && (
+              <div className="card text-center">
+                  <Search className="w-12 h-12 text-text-muted mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-text-primary mb-2">Nenhum registro encontrado</h3>
+                  <p className="text-text-muted">Tente ajustar seus filtros ou registre uma nova atividade!</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      <MeasurementModal
+        isOpen={!!editingMeasurement}
+        onClose={() => setEditingMeasurement(null)}
+        onSave={handleUpdate}
+        measurementToEdit={editingMeasurement}
+      />
+    </>
   );
 };
 

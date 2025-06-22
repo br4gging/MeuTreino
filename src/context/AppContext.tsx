@@ -37,11 +37,15 @@ export interface AppState {
   onToggleSetComplete: (exId: string, setId: string) => void;
   onStopRestimer: () => void;
   onWeekChange: (week: number) => void;
-  onSaveMeasurement: (measurement: BodyMeasurement) => Promise<void>;
   showToast: (message: string, options?: { type?: 'success' | 'error' }) => void;
   showConfirmation: (title: string, message: string, onConfirm: () => void) => void;
   hideConfirmation: () => void;
-  onCancelWorkout: () => void; // Adicionado aqui
+  onCancelWorkout: () => void;
+  onSaveMeasurement: (measurement: BodyMeasurement) => Promise<void>;
+  
+  // --- FUNÇÕES ADICIONADAS ---
+  onUpdateMeasurement: (measurement: BodyMeasurement) => Promise<void>;
+  onDeleteMeasurement: (measurementId: string) => Promise<void>;
 }
 
 export const AppContext = createContext<AppState | undefined>(undefined);

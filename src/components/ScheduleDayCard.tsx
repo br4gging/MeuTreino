@@ -3,10 +3,8 @@
 import React from 'react';
 import { Dumbbell, HeartPulse, BedDouble, ChevronDown } from 'lucide-react';
 import { DaySchedule, UserWorkout } from '../types/workout';
-import { formatKmToIMaskNumber, formatKmForDisplay, formatMinutesSecondsInput, getKmUnmaskedValue, getMinutesSecondsUnmaskedValue } from '../utils/inputMasks';
+import { formatKmForDisplay, formatMinutesSecondsInput, getMinutesSecondsUnmaskedValue } from '../utils/inputMasks';
 import { IMaskInput } from 'react-imask';
-import IMask from 'imask'; // Importar IMask aqui para usar MaskedRange
-
 
 interface ScheduleDayCardProps {
   day: DaySchedule;
@@ -29,32 +27,31 @@ const ScheduleDayCard: React.FC<ScheduleDayCardProps> = ({ day, userWorkouts, on
   const selectedWorkout = userWorkouts.find(w => w.id === day.workoutId);
   const TypeIcon = typeIcons[safeWorkoutType];
 
-  const [localDistanceInput, setLocalDistanceInput] = React.useState<string>(formatKmToIMaskNumber(day.distance));
-  const [localTargetTimeInput, setLocalTargetTimeInput] = React.useState<string>(formatMinutesSecondsInput(day.targetTime));
+  // --- NOVA FUNÇÃO PARA O INPUT DE DISTÂNCIA ---
+  const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputVal = e.target.value;
+    // Pega apenas os dígitos para fazer a mágica da "calculadora"
+    const digitsOnly = inputVal.replace(/\D/g, '');
 
-  React.useEffect(() => {
-    const newFormattedDistance = formatKmToIMaskNumber(day.distance);
-    if (newFormattedDistance !== localDistanceInput) {
-      setLocalDistanceInput(newFormattedDistance);
+    if (!digitsOnly) {
+      onScheduleChange(day.day, 'distance', null); // Limpa o valor se o input estiver vazio
+      return;
     }
-
-    const newFormattedTime = formatMinutesSecondsInput(day.targetTime);
-    if (newFormattedTime !== localTargetTimeInput) {
-      setLocalTargetTimeInput(newFormattedTime);
-    }
-  }, [day.distance, day.targetTime, localDistanceInput, localTargetTimeInput]);
-
-
-  const handleDistanceChange = (maskedValue: string) => {
-    setLocalDistanceInput(maskedValue);
-    onScheduleChange(day.day, 'distance', getKmUnmaskedValue(maskedValue));
+    
+    // Converte os dígitos para o valor numérico correto (ex: "524" -> 5.24)
+    const numericValue = Number(digitsOnly) / 100;
+    onScheduleChange(day.day, 'distance', numericValue);
   };
 
   const handleTargetTimeChange = (maskedValue: string) => {
-    setLocalTargetTimeInput(maskedValue);
     onScheduleChange(day.day, 'targetTime', getMinutesSecondsUnmaskedValue(maskedValue));
   };
-
+  
+  // Formata o valor da prop `day.distance` para exibição no input
+  // Ex: 5.24 -> "5,24"
+  const distanceDisplayValue = day.distance != null 
+    ? day.distance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '';
 
   return (
     <div className={`bg-bg-secondary rounded-2xl p-4 transition-all duration-300 border-l-4 ${style.borderColor}`}>
@@ -100,21 +97,11 @@ const ScheduleDayCard: React.FC<ScheduleDayCardProps> = ({ day, userWorkouts, on
                 <div className="flex gap-3">
                     <div className="flex-1">
                     <label className="block text-xs font-semibold text-text-muted mb-1">Distância (km)</label>
-                    <IMaskInput
-                        mask={Number}
-                        mask={{
-                            mask: Number,
-                            radix: ",",
-                            scale: 2,
-                            thousandsSeparator: "",
-                            padFractionalZeros: true,
-                            normalizeZeros: true,
-                            autofix: true,
-                            signed: false,
-                            mapToRadix: ['.'],
-                        }}
-                        value={localDistanceInput}
-                        onAccept={(value: string) => handleDistanceChange(value)}
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        value={distanceDisplayValue}
+                        onChange={handleDistanceChange}
                         placeholder="0,00"
                         className={`w-full p-2 bg-black/20 border-2 border-white/10 rounded-lg text-text-primary font-semibold focus:ring-2 focus:${style.ringColor} focus:outline-none`}
                     />
@@ -122,29 +109,12 @@ const ScheduleDayCard: React.FC<ScheduleDayCardProps> = ({ day, userWorkouts, on
                     <div className="flex-1">
                     <label className="block text-xs font-semibold text-text-muted mb-1">Tempo (min)</label>
                     <IMaskInput
-                        mask="HH:MM"
+                        mask="00:00"
+                        placeholderChar='0'
                         lazy={false}
                         overwrite={true}
-                        placeholderChar="0"
-                        blocks={{
-                          HH: {
-                            mask: IMask.MaskedRange,
-                            from: 0,
-                            to: 99,
-                            autofix: true,
-                            maxLength: 2
-                          },
-                          MM: {
-                            mask: IMask.MaskedRange,
-                            from: 0,
-                            to: 59,
-                            autofix: true,
-                            maxLength: 2
-                          },
-                        }}
-                        value={localTargetTimeInput}
+                        value={formatMinutesSecondsInput(day.targetTime) || ''}
                         onAccept={(value: string) => handleTargetTimeChange(value)}
-                        placeholder="00:00"
                         className={`w-full p-2 bg-black/20 border-2 border-white/10 rounded-lg text-text-primary font-semibold focus:ring-2 focus:${style.ringColor} focus:outline-none`}
                     />
                     </div>
@@ -153,14 +123,13 @@ const ScheduleDayCard: React.FC<ScheduleDayCardProps> = ({ day, userWorkouts, on
         </div>
       ) : (
         <div className="mt-2">
-            {day.workoutType === 'strength' && (
-                <p className="text-sm text-text-secondary">Treino: <span className="font-semibold text-text-primary">{selectedWorkout?.name || 'Nenhum selecionado'}</span></p>
-            )}
+            {day.workoutType === 'strength' && ( <p className="text-sm text-text-secondary">Treino: <span className="font-semibold text-text-primary">{selectedWorkout?.name || 'Nenhum selecionado'}</span></p> )}
             {day.workoutType === 'cardio' && (
                 <p className="text-sm text-text-secondary">Meta: <span className="font-semibold text-text-primary">
                     {day.distance ? `${formatKmForDisplay(day.distance)} km` : ''}
                     {day.distance && day.targetTime ? ' ou ' : ''}
-                    {day.targetTime ? `${formatMinutesSecondsInput(day.targetTime)} min` : 'Nenhuma meta definida'}
+                    {day.targetTime ? `${formatMinutesSecondsInput(day.targetTime)} min` : ''}
+                    {!day.distance && !day.targetTime ? 'Nenhuma meta definida' : ''}
                 </span></p>
             )}
         </div>

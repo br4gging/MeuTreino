@@ -1,3 +1,5 @@
+// ARQUIVO: src/components/hooks/useMeasurementForm.ts
+
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import { BodyMeasurement, CustomMeasurementField, UserMeasurementSource } from '../../types/workout';
@@ -7,26 +9,25 @@ interface UseMeasurementFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (measurement: BodyMeasurement) => Promise<void>;
+  measurementToEdit?: BodyMeasurement | null; // <-- Prop para edição
 }
 
-export function useMeasurementForm({ isOpen, onClose, onSave }: UseMeasurementFormProps) {
+export function useMeasurementForm({ isOpen, onClose, onSave, measurementToEdit }: UseMeasurementFormProps) {
   const { showToast, showConfirmation, setLoading: setGlobalLoading } = useAppContext();
   const [localLoading, setLocalLoading] = useState(true);
+  const isEditMode = !!measurementToEdit;
   
-  // Form states
   const [measuredAt, setMeasuredAt] = useState(new Date().toISOString().split('T')[0]);
   const [weight, setWeight] = useState('');
   const [bodyFat, setBodyFat] = useState('');
   const [fieldValues, setFieldValues] = useState<{ [key: string]: string }>({});
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Sources states
   const [sources, setSources] = useState<UserMeasurementSource[]>([]);
   const [selectedSource, setSelectedSource] = useState('');
   const [showNewSourceInput, setShowNewSourceInput] = useState(false);
   const [newSourceName, setNewSourceName] = useState('');
 
-  // Custom Fields states
   const [activeCustomFields, setActiveCustomFields] = useState<CustomMeasurementField[]>([]);
   const [availableCustomFields, setAvailableCustomFields] = useState<CustomMeasurementField[]>([]);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -48,6 +49,28 @@ export function useMeasurementForm({ isOpen, onClose, onSave }: UseMeasurementFo
     setErrors({});
   }, []);
 
+  const populateForm = useCallback((measurement: BodyMeasurement, allFields: CustomMeasurementField[]) => {
+      setMeasuredAt(new Date(measurement.measured_at).toISOString().split('T')[0]);
+      setWeight(measurement.weight_kg?.toString() || '');
+      setBodyFat(measurement.body_fat_percentage?.toString() || '');
+      setSelectedSource(measurement.source);
+
+      if (measurement.details) {
+          const detailsValues: { [key: string]: string } = {};
+          const activeFields: CustomMeasurementField[] = [];
+          
+          Object.keys(measurement.details).forEach(key => {
+              const fieldMeta = allFields.find(f => f.field_key === key);
+              if (fieldMeta) {
+                  activeFields.push(fieldMeta);
+                  detailsValues[key] = measurement.details![key].toString();
+              }
+          });
+          setActiveCustomFields(activeFields);
+          setFieldValues(detailsValues);
+      }
+  }, []);
+
   const fetchData = useCallback(async () => {
     setLocalLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
@@ -59,17 +82,28 @@ export function useMeasurementForm({ isOpen, onClose, onSave }: UseMeasurementFo
       supabase.from('user_measurement_sources').select('*').eq('user_id', user.id),
       supabase.from('custom_measurement_fields').select('*').eq('user_id', user.id)
     ]);
-    if (sourcesRes.data) setSources(sourcesRes.data);
-    if (fieldsRes.data) setAvailableCustomFields(fieldsRes.data);
+
+    const allSources = sourcesRes.data || [];
+    const allFields = fieldsRes.data || [];
+
+    setSources(allSources);
+    setAvailableCustomFields(allFields);
+
+    if (isEditMode && measurementToEdit) {
+        populateForm(measurementToEdit, allFields);
+    }
+    
     setLocalLoading(false);
-  }, []);
+  }, [isEditMode, measurementToEdit, populateForm]);
 
   useEffect(() => {
     if (isOpen) {
+      if (!isEditMode) {
+        resetForm();
+      }
       fetchData();
-      resetForm();
     }
-  }, [isOpen, fetchData, resetForm]);
+  }, [isOpen, isEditMode, fetchData, resetForm]);
 
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
@@ -101,6 +135,7 @@ export function useMeasurementForm({ isOpen, onClose, onSave }: UseMeasurementFo
     }
 
     const measurementData: BodyMeasurement = {
+      id: isEditMode ? measurementToEdit?.id : undefined,
       measured_at: measuredAt,
       source: finalSource,
       weight_kg: weight ? parseFloat(weight) : undefined,
@@ -213,5 +248,6 @@ export function useMeasurementForm({ isOpen, onClose, onSave }: UseMeasurementFo
     availableCustomFields,
     handleDeleteSource,
     handleDeleteCustomField,
+    isEditMode,
   };
 }

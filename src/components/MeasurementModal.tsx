@@ -1,9 +1,9 @@
+// ARQUIVO: src/components/MeasurementModal.tsx
+
 import React, { useState } from 'react';
 import { X, Plus, Trash2, Settings } from 'lucide-react';
 import { useMeasurementForm } from './hooks/useMeasurementForm';
-import { CustomMeasurementField, UserMeasurementSource } from '../types/workout';
-
-// --- Subcomponentes movidos para fora para melhor performance e clareza ---
+import { CustomMeasurementField, UserMeasurementSource, BodyMeasurement } from '../types/workout';
 
 const InputField = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
     <input {...props} className="w-full px-4 py-3 bg-black/20 border-2 border-white/10 rounded-xl text-text-primary focus:outline-none focus:border-primary focus:bg-primary/10 transition-all" />
@@ -39,15 +39,15 @@ const ManageItemsModal: React.FC<ManageItemsModalProps> = ({ title, items, onClo
     </div>
 );
 
-// --- Componente Principal do Modal ---
 
 interface MeasurementModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (measurement: any) => Promise<void>;
+  measurementToEdit?: BodyMeasurement | null;
 }
 
-export const MeasurementModal: React.FC<MeasurementModalProps> = ({ isOpen, onClose, onSave }) => {
+export const MeasurementModal: React.FC<MeasurementModalProps> = ({ isOpen, onClose, onSave, measurementToEdit }) => {
   const {
     measuredAt, setMeasuredAt, weight, setWeight, bodyFat, setBodyFat,
     sources, selectedSource, showNewSourceInput, newSourceName, setNewSourceName, setShowNewSourceInput, handleSourceChange,
@@ -56,7 +56,8 @@ export const MeasurementModal: React.FC<MeasurementModalProps> = ({ isOpen, onCl
     availableCustomFields, unselectedCustomFields, showAddMenu, setShowAddMenu,
     showNewFieldForm, setShowNewFieldForm, newFieldLabel, setNewFieldLabel, newFieldUnit, setNewFieldUnit, handleCreateNewField,
     handleDeleteSource, handleDeleteCustomField,
-  } = useMeasurementForm({ isOpen, onClose, onSave });
+    isEditMode,
+  } = useMeasurementForm({ isOpen, onClose, onSave, measurementToEdit });
 
   const [manageSourcesOpen, setManageSourcesOpen] = useState(false);
   const [manageFieldsOpen, setManageFieldsOpen] = useState(false);
@@ -67,14 +68,15 @@ export const MeasurementModal: React.FC<MeasurementModalProps> = ({ isOpen, onCl
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
       <div className="bg-bg-secondary border border-white/10 backdrop-blur-lg rounded-2xl p-6 shadow-2xl max-w-lg w-full">
         <div className="flex justify-between items-center mb-6">
-          <h3 id="modal-title" className="text-2xl font-bold text-text-primary">Registar Medidas</h3>
+          <h3 id="modal-title" className="text-2xl font-bold text-text-primary">
+            {isEditMode ? 'Editar Medidas' : 'Registar Medidas'}
+          </h3>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full"><X size={24} /></button>
         </div>
         
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
             <InputField type="date" value={measuredAt} onChange={e => setMeasuredAt(e.target.value)} />
             
-            {/* Bloco da Fonte de Medição */}
             <div>
                 <div className="flex justify-between items-center mb-1">
                     <label className="text-sm font-medium text-text-secondary">Fonte da Medição</label>
@@ -95,13 +97,11 @@ export const MeasurementModal: React.FC<MeasurementModalProps> = ({ isOpen, onCl
                 {errors.source && <span className="text-xs text-red-600">{errors.source}</span>}
             </div>
 
-            {/* Campos de Peso e Gordura */}
             <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-text-secondary mb-1">Peso (kg)</label><InputField type="number" placeholder="0.0" value={weight} onChange={e => setWeight(e.target.value)} /></div>
                 <div><label className="block text-sm font-medium text-text-secondary mb-1">Gordura (%)</label><InputField type="number" placeholder="0.0" value={bodyFat} onChange={e => setBodyFat(e.target.value)} /></div>
             </div>
 
-            {/* Medidas Personalizadas */}
             <div className="border-t border-white/10 pt-4 space-y-3">
                 <div className="flex justify-between items-center"><h4 className="font-semibold text-text-primary">Medidas Personalizadas</h4><button onClick={() => setManageFieldsOpen(true)} className="text-xs text-text-muted hover:text-primary flex items-center gap-1"><Settings size={12}/> Gerir</button></div>
                 {activeCustomFields.map((field) => (
@@ -135,7 +135,9 @@ export const MeasurementModal: React.FC<MeasurementModalProps> = ({ isOpen, onCl
 
         <div className="flex justify-end gap-2 mt-6 border-t border-white/10 pt-4">
           <button onClick={onClose} className="btn-secondary">Cancelar</button>
-          <button onClick={handleSave} className="btn-primary" disabled={localLoading}>Salvar</button>
+          <button onClick={handleSave} className="btn-primary" disabled={localLoading}>
+            {isEditMode ? 'Salvar Alterações' : 'Salvar'}
+          </button>
         </div>
       </div>
       
