@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Adicionado 'useCallback'
 import { useAppContext } from '../../context/AppContext';
 import WeeklySchedulePanel from './WeeklySchedulePanel';
 import UserWorkoutsList from './UserWorkoutsList';
@@ -19,20 +19,20 @@ const WorkoutManagement: React.FC = () => {
   } = useAppContext();
 
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
-  const [schedule, setSchedule] = useState<DaySchedule[]>([]);
+  const [schedule, setSchedule] = useState<DaySchedule[]>([]); 
   const [isCreatingWorkout, setIsCreatingWorkout] = useState(false);
   const [editingWorkout, setEditingWorkout] = useState<UserWorkout | null>(null);
   const [newWorkoutName, setNewWorkoutName] = useState('');
   const [exercises, setExercises] = useState<Exercise[]>([]);
 
   useEffect(() => {
-    if (initialSchedule && initialSchedule.length > 0) {
+    if (!isEditingSchedule && initialSchedule && initialSchedule.length > 0) {
       setSchedule([...initialSchedule]);
     }
-  }, [initialSchedule]);
+  }, [initialSchedule, isEditingSchedule]);
 
   // --- Schedule Handlers ---
-  const handleScheduleChange = (day: number, field: string, value: any) => {
+  const handleScheduleChange = useCallback((day: number, field: string, value: any) => {
     if (!isEditingSchedule) return;
     setSchedule(current => current.map(s => {
       if (s.day === day) {
@@ -51,29 +51,31 @@ const WorkoutManagement: React.FC = () => {
       }
       return s;
     }));
-  };
-  
-  const handleEditClick = () => setIsEditingSchedule(true);
+  }, [isEditingSchedule, setSchedule]); // setSchedule é uma função de setter, isEditingSchedule é um primitivo
 
-  const handleCancelClick = () => {
-    if (initialSchedule) setSchedule(initialSchedule);
+  const handleEditClick = useCallback(() => setIsEditingSchedule(true), [setIsEditingSchedule]);
+
+  const handleCancelClick = useCallback(() => {
+    if (initialSchedule) setSchedule([...initialSchedule]); 
     setIsEditingSchedule(false);
-  };
-  const handleSaveClick = async () => {
-    const success = await onSaveSchedule(schedule);
+  }, [initialSchedule, setSchedule, setIsEditingSchedule]);
+
+  const handleSaveClick = useCallback(async () => {
+    const success = await onSaveSchedule(schedule); 
     if (success) {
       setIsEditingSchedule(false);
     }
-  };
+  }, [onSaveSchedule, schedule, setIsEditingSchedule]);
 
   // --- Workout CRUD Handlers ---
-  const handleCreateWorkout = () => {
+  const handleCreateWorkout = useCallback(() => {
     setIsCreatingWorkout(true);
     setEditingWorkout(null);
     setNewWorkoutName('');
     setExercises([]);
-  };
-  const handleEditWorkout = (workout: UserWorkout) => {
+  }, [setIsCreatingWorkout, setEditingWorkout, setNewWorkoutName, setExercises]);
+
+  const handleEditWorkout = useCallback((workout: UserWorkout) => {
     setEditingWorkout(workout);
     setIsCreatingWorkout(true);
     setNewWorkoutName(workout.name);
@@ -83,8 +85,9 @@ const WorkoutManagement: React.FC = () => {
       return { ...ex, id: baseId, sets: setsWithIds };
     });
     setExercises(migratedExercises as Exercise[]);
-  };
-  const handleDeleteWorkout = async (workout: UserWorkout) => {
+  }, [setEditingWorkout, setIsCreatingWorkout, setNewWorkoutName, setExercises]);
+
+  const handleDeleteWorkout = useCallback(async (workout: UserWorkout) => {
     showConfirmation(
       `Apagar Treino "${workout.name}"?`,
       'Esta ação não pode ser desfeita. Tem a certeza?',
@@ -98,14 +101,16 @@ const WorkoutManagement: React.FC = () => {
         }
       }
     );
-  };
+  }, [showConfirmation, showToast, refetchWorkouts]); // Dependências relevantes
 
   // --- WorkoutForm Handlers ---
-  const handleNameChange = (name: string) => setNewWorkoutName(name);
-  const handleExerciseChange = (exerciseId: string, field: string, value: string) => {
+  const handleNameChange = useCallback((name: string) => setNewWorkoutName(name), [setNewWorkoutName]);
+
+  const handleExerciseChange = useCallback((exerciseId: string, field: string, value: string) => {
     setExercises(prev => prev.map(ex => ex.id === exerciseId ? { ...ex, [field]: value } : ex));
-  };
-  const handleAddExercise = () => {
+  }, [setExercises]);
+
+  const handleAddExercise = useCallback(() => {
     const newExercise: Exercise = {
       id: crypto.randomUUID(),
       name: '',
@@ -116,21 +121,26 @@ const WorkoutManagement: React.FC = () => {
       notes: '', completed: 0, total: 2, rpe: '8',
     };
     setExercises(prev => [...prev, newExercise]);
-  };
-  const handleRemoveExercise = (exerciseId: string) => {
+  }, [setExercises]);
+
+  const handleRemoveExercise = useCallback((exerciseId: string) => {
     setExercises(prev => prev.filter(ex => ex.id !== exerciseId));
-  };
-  const handleAddSet = (exerciseId: string, type: 'warmup' | 'work') => {
+  }, [setExercises]);
+
+  const handleAddSet = useCallback((exerciseId: string, type: 'warmup' | 'work') => {
     const newSet: SetTemplate = { id: crypto.randomUUID(), type, value: type === 'warmup' ? '50' : '2', reps: type === 'warmup' ? '12' : '8-12', restTime: type === 'warmup' ? '60' : '120' };
     setExercises(prev => prev.map(ex => ex.id === exerciseId ? { ...ex, sets: [...ex.sets, newSet] } : ex));
-  };
-  const handleRemoveSet = (exerciseId: string, setId: string) => {
+  }, [setExercises]);
+
+  const handleRemoveSet = useCallback((exerciseId: string, setId: string) => {
     setExercises(prev => prev.map(ex => (ex.id === exerciseId ? { ...ex, sets: ex.sets.filter(s => s.id !== setId) } : ex)));
-  };
-  const handleSetChange = (exerciseId: string, setId: string, field: string, value: string) => {
+  }, [setExercises]); // <--- A FUNÇÃO EM QUESTÃO
+
+  const handleSetChange = useCallback((exerciseId: string, setId: string, field: string, value: string) => {
     setExercises(prev => prev.map(ex => (ex.id === exerciseId ? { ...ex, sets: ex.sets.map(s => s.id === setId ? { ...s, [field]: value } : s) } : ex)));
-  };
-  const handleSaveWorkout = async () => {
+  }, [setExercises]);
+
+  const handleSaveWorkout = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -152,7 +162,7 @@ const WorkoutManagement: React.FC = () => {
     } catch (error: any) {
       showToast('Erro ao salvar treino: ' + (error.message || error), { type: 'error' });
     }
-  };
+  }, [editingWorkout, newWorkoutName, exercises, showToast, setIsCreatingWorkout, setEditingWorkout, setNewWorkoutName, setExercises, refetchWorkouts]); // Adicionado todas as dependências
 
   return (
     <div className="min-h-screen p-4 pb-24 animate-fade-in-up">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DaySchedule, UserWorkout } from '../../types/workout';
 import ScheduleDayCard from '../ScheduleDayCard';
 import { Calendar, Edit, X, Check, Dumbbell, HeartPulse, BedDouble } from 'lucide-react';
@@ -14,7 +14,7 @@ interface WeeklySchedulePanelProps {
 }
 
 const WeeklySchedulePanel: React.FC<WeeklySchedulePanelProps> = ({
-  schedule,
+  schedule, // Usar diretamente a prop 'schedule' do pai
   userWorkouts,
   isEditing,
   onEdit,
@@ -23,6 +23,8 @@ const WeeklySchedulePanel: React.FC<WeeklySchedulePanelProps> = ({
   onScheduleChange
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  // Não precisamos de estado local para 'schedule' aqui.
+  // Apenas uma cópia classificada para exibição.
   const sortedSchedule = [...schedule].sort((a, b) => a.day - b.day);
 
   const dayIcons: { [key: string]: React.ElementType } = {

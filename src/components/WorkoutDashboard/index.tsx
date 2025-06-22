@@ -64,6 +64,8 @@ const WorkoutDashboard: React.FC = () => {
               }))
             };
             setWorkoutForToday(cleanWorkout);
+            // Mova o console.log para DENTRO deste if, onde workoutForToday é realmente setado
+            console.log("Workout for today updated:", cleanWorkout);
             if (cleanWorkout.exercises.length > 0) {
               setOpenExerciseId(cleanWorkout.exercises[0].id);
             }
@@ -84,8 +86,7 @@ const WorkoutDashboard: React.FC = () => {
     } else {
       setIsRestDay(true);
     }
-  }, [selectedDate, weeklySchedule, userWorkouts, isWorkoutInProgress]);
-
+  }, [selectedDate, weeklySchedule, userWorkouts, isWorkoutInProgress]); // Remova 'workoutForToday' daqui
 
   useEffect(() => {
     const dist = parseFloat(userInputDistance);
