@@ -29,25 +29,39 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   const workoutTimerRef = useRef<NodeJS.Timeout | null>(null);
   const restTimerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // --- ALTERAÇÃO 1: Mantemos a referência para o áudio ---
   const beepSound = useRef<HTMLAudioElement | null>(null); 
 
   useEffect(() => {
+    // Inicializamos o objeto de áudio apenas uma vez
     beepSound.current = new Audio('/sounds/beep.mp3');
+    // Preparamos o áudio para tocar com baixa latência
+    beepSound.current.preload = 'auto'; 
   }, []);
 
-  const playBeep = useCallback((times: number, delay: number = 100) => {
-    if (beepSound.current) {
-      let count = 0;
-      const playInterval = setInterval(() => {
-        if (beepSound.current) {
-          beepSound.current.currentTime = 0; 
-          beepSound.current.play();
+  // --- ALTERAÇÃO 2: Nova função playBeep mais robusta ---
+  const playBeep = useCallback(async (times: number, delay: number = 150) => {
+    if (!beepSound.current) return;
+
+    // Garante que a função não seja interrompida por chamadas rápidas
+    beepSound.current.pause(); 
+
+    for (let i = 0; i < times; i++) {
+      try {
+        // Reinicia o som para garantir que ele toque do início
+        beepSound.current.currentTime = 0;
+        await beepSound.current.play();
+        
+        // Espera um tempo antes do próximo beep (se houver)
+        if (i < times - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
-        count++;
-        if (count >= times) {
-          clearInterval(playInterval);
-        }
-      }, delay);
+      } catch (error) {
+        console.error("Erro ao tocar o som:", error);
+        // Se houver um erro, paramos de tentar tocar
+        break; 
+      }
     }
   }, []);
 
@@ -328,21 +342,30 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     return () => { if (workoutTimerRef.current) clearInterval(workoutTimerRef.current); };
   }, [isWorkoutInProgress]);
 
+  // --- ALTERAÇÃO 3: Lógica do timer de descanso atualizada ---
   useEffect(() => {
-    if (isRestTimerRunning && restTimer >= 0) {
+    if (restTimerIntervalRef.current) {
+      clearInterval(restTimerIntervalRef.current);
+    }
+
+    if (isRestTimerRunning && restTimer > 0) {
       restTimerIntervalRef.current = setInterval(() => {
         setRestTimer(p => {
           const newTime = p - 1;
-          if (newTime === 10) { playBeep(1); }
-          else if (newTime <= 0) {
-            if (p > 0) playBeep(3, 100);
+          if (newTime <= 0) {
+            clearInterval(restTimerIntervalRef.current!);
             setIsRestTimerRunning(false);
+            playBeep(3); // Toca 3 beeps no final
             return 0;
+          }
+          if (newTime === 10) {
+            playBeep(1); // Toca 1 beep aos 10 segundos
           }
           return newTime;
         });
       }, 1000);
     }
+    
     return () => { if (restTimerIntervalRef.current) clearInterval(restTimerIntervalRef.current); };
   }, [isRestTimerRunning, restTimer, playBeep]);
   
